@@ -183,39 +183,39 @@ class S3HRModel(S3Model):
 
         human_resource_search = S3Search(
             simple=(self.human_resource_search_simple_widget("simple")),
-#            advanced=(self.human_resource_search_simple_widget("advanced"),
-#                      S3SearchOptionsWidget(
-#                        name="human_resource_search_type",
-#                        label=T("Type"),
-#                        field=["type"],
-#                        cols = 3
-#                      ),
-#                      S3SearchOptionsWidget(
-#                        name="human_resource_search_org",
-#                        label=T("Organization"),
-#                        field=["organisation_id"],
-#                        represent ="%(name)s",
-#                        cols = 3
-#                      ),
-#                      S3SearchLocationHierarchyWidget(
-#                        name="human_resource_search_L1",
-#                        field="L1",
-#                        cols = 3,
-#                      ),
-#                      S3SearchLocationHierarchyWidget(
-#                        name="human_resource_search_L2",
-#                        field="L2",
-#                        cols = 3,
-#                      ),
-#                      S3SearchLocationWidget(
-#                        name="human_resource_search_map",
-#                        label=T("Map"),
-#                      ),
-#                      S3SearchOptionsWidget(
-#                        name="human_resource_search_site",
-#                        label=T("Facility"),
-#                        field=["site_id"]
-#                      ),
+            advanced=(self.human_resource_search_simple_widget("advanced"),
+                      S3SearchOptionsWidget(
+                        name="human_resource_search_type",
+                        label=T("Type"),
+                        field=["type"],
+                        cols = 3
+                      ),
+                      S3SearchOptionsWidget(
+                        name="human_resource_search_org",
+                        label=T("Organization"),
+                        field=["organisation_id"],
+                        represent ="%(name)s",
+                        cols = 3
+                      ),
+                      S3SearchLocationHierarchyWidget(
+                        name="human_resource_search_L1",
+                        field="L1",
+                        cols = 3,
+                      ),
+                      S3SearchLocationHierarchyWidget(
+                        name="human_resource_search_L2",
+                        field="L2",
+                        cols = 3,
+                      ),
+                      S3SearchLocationWidget(
+                        name="human_resource_search_map",
+                        label=T("Map"),
+                      ),
+                      S3SearchOptionsWidget(
+                        name="human_resource_search_site",
+                        label=T("Facility"),
+                        field=["site_id"]
+                      ),
                       # S3SearchSkillsWidget(
                         # name="human_resource_search_skills",
                         # label=T("Skills"),
@@ -228,7 +228,7 @@ class S3HRModel(S3Model):
                       #  label=T("Contract Expiry Date"),
                       #  field=["end_date"]
                       #),
-#            )
+            )
         )
 
         table.virtualfields.append(HRMVirtualFields())
