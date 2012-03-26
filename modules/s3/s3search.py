@@ -438,33 +438,39 @@ class S3SearchMinMaxWidget(S3SearchWidget):
             @param resource: the resource to search in
             @param value: the value returned from the widget
         """
+        
+        # We only want the first field in the list
+        field = self.field[0]
 
-        db = current.db
+        min_query = None
+        max_query = None
+        
+        if self.method in ("min", "range"):
+            # Create query to test for minimum
+            min_value = value.get("min_%s" % field, None)
+            
+            if min_value is not None and str(min_value):
+                min_query = S3QueryField(field).__ge__(min_value)
+        
+        if self.method in ("max", "range"):
+            # Create query to test for maximum
+            max_value = value.get("max_%s" % field, None)
+            
+            if max_value is not None and str(max_value):
+                max_query = S3QueryField(field).__le__(max_value)
+        
+        final_query = None
+        
+        if min_query is not None:
+            final_query = min_query
+        
+        if max_query is not None:
+            if final_query is not None:
+                final_query = max_query & final_query
+            else:
+                final_query = max_query
 
-        tablename = self.search_field.keys()[0]
-        search_field = self.search_field[tablename][0]
-
-        select_min = self.method in ("min", "range")
-        select_max = self.method in ("max", "range")
-
-        min_query = max_query = None
-        if select_min:
-            v = value.get("min_%s" % search_field.name, None)
-            if v is not None and str(v):
-                min_query = (search_field >= v)
-        if select_max:
-            v = value.get("max_%s" % search_field.name, None)
-            if v is not None and str(v):
-                max_query = (search_field <= v)
-        query = self.master_query[tablename]
-        if min_query is not None or max_query is not None:
-            if min_query is not None:
-                query = query & min_query
-            if max_query is not None:
-                query = query & max_query
-        else:
-            query = None
-        return (query)
+        return final_query
 
 # =============================================================================
 
