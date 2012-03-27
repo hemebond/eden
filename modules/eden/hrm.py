@@ -187,13 +187,13 @@ class S3HRModel(S3Model):
                       S3SearchOptionsWidget(
                         name="human_resource_search_type",
                         label=T("Type"),
-                        field=["type"],
+                        field="type",
                         cols = 3
                       ),
                       S3SearchOptionsWidget(
                         name="human_resource_search_org",
                         label=T("Organization"),
-                        field=["organisation_id"],
+                        field="organisation_id",
                         represent ="%(name)s",
                         cols = 3
                       ),
@@ -214,7 +214,8 @@ class S3HRModel(S3Model):
                       S3SearchOptionsWidget(
                         name="human_resource_search_site",
                         label=T("Facility"),
-                        field=["site_id"]
+                        field="site_id",
+                        no_opts = "There are no options" # Fixme: Remove after testing
                       ),
                       # S3SearchSkillsWidget(
                         # name="human_resource_search_skills",
@@ -226,7 +227,7 @@ class S3HRModel(S3Model):
                       #  name="human_resource_search_date",
                       #  method="range",
                       #  label=T("Contract Expiry Date"),
-                      #  field=["end_date"]
+                      #  field="end_date"
                       #),
             )
         )
@@ -264,7 +265,7 @@ class S3HRModel(S3Model):
                             S3SearchOptionsWidget(
                                 name="human_resource_search_site",
                                 label=T("Facility"),
-                                field=["site_id"]
+                                field="site_id"
                             ),
                         ],
                        report_rows = report_fields,
@@ -1395,13 +1396,13 @@ class S3HRSkillModel(S3Model):
                     S3SearchOptionsWidget(
                       name="training_event_search_site",
                       label=T("Facility"),
-                      field=["site_id"]
+                      field="site_id"
                     ),
                     S3SearchMinMaxWidget(
                       name="training_event_search_date",
                       method="range",
                       label=T("Date"),
-                      field=["start_date"]
+                      field="start_date"
                     ),
             ))
 
@@ -1509,18 +1510,18 @@ class S3HRSkillModel(S3Model):
                     # S3SearchOptionsWidget(
                       # name="training_search_site",
                       # label=T("Facility"),
-                      # field=["training_event_id$course_id$site_id"]
+                      # field="training_event_id$course_id$site_id"
                     # ),
                     S3SearchOptionsWidget(
                       name="training_search_course",
                       label=T("Course"),
-                      field=["training_event_id$course_id"]
+                      field="training_event_id$course_id"
                     ),
                     S3SearchMinMaxWidget(
                       name="training_search_date",
                       method="range",
                       label=T("Date"),
-                      field=["training_event_id$start_date"]
+                      field="training_event_id$start_date"
                     ),
             ))
 
@@ -1553,7 +1554,7 @@ class S3HRSkillModel(S3Model):
                             ),
                             S3SearchOptionsWidget(
                                 name="training_search_site",
-                                field=["training_event_id$site_id"],
+                                field="training_event_id$site_id",
                                 label = T("Facility"),
                                 cols = 3,
                             ),
@@ -1561,7 +1562,7 @@ class S3HRSkillModel(S3Model):
                                 name="training_search_date",
                                 method="range",
                                 label=T("Date"),
-                                field=["training_event_id$start_date"]
+                                field="training_event_id$start_date"
                             ),
                         ],
                   report_rows = report_fields,

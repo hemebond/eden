@@ -438,26 +438,23 @@ class S3SearchMinMaxWidget(S3SearchWidget):
             @param resource: the resource to search in
             @param value: the value returned from the widget
         """
-        
-        # We only want the first field in the list
-        field = self.field[0]
 
         min_query = None
         max_query = None
         
         if self.method in ("min", "range"):
             # Create query to test for minimum
-            min_value = value.get("min_%s" % field, None)
+            min_value = value.get("min_%s" % self.field, None)
             
             if min_value is not None and str(min_value):
-                min_query = S3QueryField(field).__ge__(min_value)
+                min_query = S3QueryField(self.field).__ge__(min_value)
         
         if self.method in ("max", "range"):
             # Create query to test for maximum
-            max_value = value.get("max_%s" % field, None)
+            max_value = value.get("max_%s" % self.field, None)
             
             if max_value is not None and str(max_value):
-                max_query = S3QueryField(field).__le__(max_value)
+                max_query = S3QueryField(self.field).__le__(max_value)
         
         final_query = None
         
@@ -516,15 +513,17 @@ class S3SearchOptionsWidget(S3SearchWidget):
             @param vars: the URL GET variables as dict
         """
 
-        resource, field, kfield = self._get_reference_resource(resource)
+        #resource, field, kfield = self._get_reference_resource(resource)
+        field = self.field[0]
 
         T = current.T
 
-        if "_name" not in self.attr:
+        if "_name" not in self.attr: 
             self.attr.update(_name="%s_search_select_%s" % (resource.name,
                                                             field))
         self.name = self.attr._name
-        msg = self.attr._no_opts
+        
+        msg = self.attr.get("no_opts", T("no options available"))
 
         if vars and self.name in vars:
             value = vars[self.name]
@@ -558,14 +557,7 @@ class S3SearchOptionsWidget(S3SearchWidget):
             else:
                 opt_keys = [row[field] for row in rows if row[field] != None]
             if opt_keys == []:
-                msg = self.attr._no_opts
-                if msg is None:
-                    msg = T("no options available")
-                if msg:
-                    return SPAN(msg,
-                                _style="color:#AAA; font-style:italic;")
-                else:
-                    return None
+                return SPAN(msg, _style="color:#AAA; font-style:italic;")
 
         # Always use the represent of the widget, if present
         represent = self.attr.represent
@@ -774,7 +766,7 @@ class S3SearchLocationHierarchyWidget(S3SearchOptionsWidget):
             config = gis.get_config()
             field = level = config.search_level or "L0"
 
-        self.field = [field]
+        self.field = field
 
         label = gis.get_location_hierarchy()[level]
 
