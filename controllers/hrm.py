@@ -93,7 +93,10 @@ def index():
                                  "person_id",
                                  "job_title",
                                  "type",
-                                 "site_id"])
+                                 "site_id",
+                                 "virtual_id",
+                                 "course",
+                                 ])
 
     response.s3.filter = org_filter
     # Parse the Request

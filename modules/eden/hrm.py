@@ -181,6 +181,9 @@ class S3HRModel(S3Model):
                                             label = T("Human Resource"),
                                             ondelete = "RESTRICT")
 
+        def get_courses():
+            rows = resource.select(field, groupby=field)
+
         human_resource_search = S3Search(
             simple=(self.human_resource_search_simple_widget("simple")),
             advanced=(self.human_resource_search_simple_widget("advanced"),
@@ -214,21 +217,32 @@ class S3HRModel(S3Model):
                       S3SearchOptionsWidget(
                         name="human_resource_search_site",
                         label=T("Facility"),
-                        field="site_id",
-                        no_opts = "There are no options" # Fixme: Remove after testing
+                        field="site_id"
                       ),
-                      # S3SearchSkillsWidget(
-                        # name="human_resource_search_skills",
-                        # label=T("Skills"),
-                        # field=["skill_id"]
-                      # ),
+                      S3SearchSkillsWidget(
+                        name="human_resource_search_skills",
+                        label=T("Skills"),
+                        field="skill_id"
+                      ),
                       # This currently breaks Requests from being able to save since this form is embedded inside the S3SearchAutocompleteWidget
-                      #S3SearchMinMaxWidget(
-                      #  name="human_resource_search_date",
-                      #  method="range",
-                      #  label=T("Contract Expiry Date"),
-                      #  field="end_date"
-                      #),
+                      S3SearchMinMaxWidget(
+                        name="human_resource_search_date",
+                        method="range",
+                        label=T("Contract Expiry Date"),
+                        field="end_date"
+                      ),
+                      S3SearchOptionsWidget(
+                        name="human_resource_search_vid",
+                        label=T("Virtual ID"),
+                        field="virtual_id",
+                        options={57:"Contestant Number One", 105:"Bye"},
+                      ),
+                      S3SearchOptionsWidget(
+                        name="human_resource_search_course",
+                        label=T("Course"),
+                        field="course",
+                        options={7:"Course One", 8:"Course Two"},
+                      ),
             )
         )
 
@@ -2445,6 +2459,9 @@ def hrm_training_event_represent(id):
 class HRMVirtualFields:
     """ Virtual fields as dimension classes for reports """
 
+    extra_fields = ["person_id",
+                    ]
+
     def course(self):
         """ Which Training Courses the person has attended """
         try:
@@ -2467,6 +2484,9 @@ class HRMVirtualFields:
                     output.append(course.name)
                     return output
         return current.messages.NONE
+    
+    def virtual_id(self):
+        return self.hrm_human_resource.person_id
 
 # =============================================================================
 class HRMTrainingVirtualFields:

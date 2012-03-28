@@ -5023,10 +5023,10 @@ class S3ResourceFilter:
             qj, d = f.joins(resource)
             if qj:
                 self.distinct = self.distinct or d
-                if alias in joins:
-                    joins[alias].update(qj)
+                if alias in self.joins:
+                    self.joins[alias].update(qj)
                 else:
-                    joins[alias] = qj
+                    self.joins[alias] = qj
         return
 
     # -------------------------------------------------------------------------

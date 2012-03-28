@@ -88,7 +88,7 @@ class S3SearchWidget(object):
             @keyword comment: a comment for the search widget
         """
 
-        self.other = None
+        self.other = None # What is this for?
 
         self.field = field
 
@@ -98,9 +98,6 @@ class S3SearchWidget(object):
         self.attr = Storage(attr)
         if name is not None:
             self.attr["_name"] = name
-
-        self.master_query = None
-        self.search_field = None
 
     # -------------------------------------------------------------------------
     def widget(self, resource, vars):
@@ -265,10 +262,13 @@ class S3SearchSimpleWidget(S3SearchWidget):
 
         if "_size" not in self.attr:
             self.attr.update(_size="40")
+
         if "_name" not in self.attr:
             self.attr.update(_name="%s_search_simple" % resource.name)
+
         if autocomplete:
             self.attr.update(_autocomplete=autocomplete)
+
         self.attr.update(_type="text")
 
         self.name = self.attr._name
@@ -355,20 +355,14 @@ class S3SearchMinMaxWidget(S3SearchWidget):
         select_min = self.method in ("min", "range")
         select_max = self.method in ("max", "range")
 
-        if len(self.field) > 1:
-            raise SyntaxError("Only one search field allowed")
+        lfield = resource.get_lfield(self.field)
+        field = lfield.field
 
-        if not self.search_field:
-            self.build_master_query(resource)
-
-        search_field = self.search_field.values()
-        if not search_field:
+        if not field:
             return SPAN(T("no options available"),
                         _style="color:#AAA; font-style:italic;")
 
-        search_field = search_field[0][0]
-
-        ftype = str(search_field.type)
+        ftype = str(field.type)
         input_min = input_max = None
         if ftype == "integer":
             requires = IS_EMPTY_OR(IS_INT_IN_RANGE())
@@ -385,26 +379,31 @@ class S3SearchMinMaxWidget(S3SearchWidget):
             raise SyntaxError("Unsupported search field type")
 
         self.attr.update(_type="text")
+
         if select_min:
-            name = "min_%s" % search_field.name
+            name = "min_%s" % field.name
             self.attr.update(_name=name, _id=name)
             self.names.append(name)
             input_min = INPUT(requires=requires, **self.attr)
+
         if select_max:
-            name = "max_%s" % search_field.name
+            name = "max_%s" % field.name
             self.attr.update(_name=name, _id=name)
             self.names.append(name)
             input_max = INPUT(requires=requires, **self.attr)
+
         trl = TR(_class="sublabels")
         tri = TR()
+
         if input_min is not None:
             trl.append(T("min"))
             tri.append(input_min)
+
         if input_max is not None:
             trl.append(T("max"))
             tri.append(input_max)
-        w = DIV(TABLE(trl, tri))
-        return w
+
+        return DIV(TABLE(trl, tri))
 
     # -------------------------------------------------------------------------
     def validate(self, resource, value):
@@ -415,17 +414,18 @@ class S3SearchMinMaxWidget(S3SearchWidget):
         errors = dict()
 
         T = current.T
+        
+        lfield = resource.get_lfield(self.field)
+        field = lfield.field
 
-        tablename = self.search_field.keys()[0]
-        search_field = self.search_field[tablename][0]
         select_min = self.method in ("min", "range")
         select_max = self.method in ("max", "range")
 
         if select_min and select_max:
-            vmin = value.get("min_%s" % search_field.name, None)
-            vmax = value.get("max_%s" % search_field.name, None)
+            vmin = value.get("min_%s" % field.name, None)
+            vmax = value.get("max_%s" % field.name, None)
             if vmax is not None and vmin is not None and vmin > vmax:
-                errors["max_%s" % search_field.name] = \
+                errors["max_%s" % field.name] = \
                      T("Maximum must be greater than minimum")
 
         return errors or None
@@ -447,14 +447,14 @@ class S3SearchMinMaxWidget(S3SearchWidget):
             min_value = value.get("min_%s" % self.field, None)
             
             if min_value is not None and str(min_value):
-                min_query = S3QueryField(self.field).__ge__(min_value)
+                min_query = S3QueryField(self.field) >= min_value
         
         if self.method in ("max", "range"):
             # Create query to test for maximum
             max_value = value.get("max_%s" % self.field, None)
             
             if max_value is not None and str(max_value):
-                max_query = S3QueryField(self.field).__le__(max_value)
+                max_query = S3QueryField(self.field) <= max_value
         
         final_query = None
         
@@ -470,6 +470,16 @@ class S3SearchMinMaxWidget(S3SearchWidget):
         return final_query
 
 # =============================================================================
+
+class JamesVirtualField():
+    def __init__(self, name, options):
+        self.type = "virtual"
+        self.name = name
+        self.options = options
+    
+    def represent(self, option_key):
+        return self.options.get(option_key)
+
 
 class S3SearchOptionsWidget(S3SearchWidget):
     """
@@ -512,10 +522,6 @@ class S3SearchOptionsWidget(S3SearchWidget):
             @param resource: the resource to search in
             @param vars: the URL GET variables as dict
         """
-
-        #resource, field, kfield = self._get_reference_resource(resource)
-        field = self.field[0]
-
         T = current.T
 
         if "_name" not in self.attr: 
@@ -530,50 +536,55 @@ class S3SearchOptionsWidget(S3SearchWidget):
         else:
             value = None
 
-        try:
-            _field = resource.table[field]
-        except:
-            field_type = "virtual"
-            raise NotImplementedError
-        else:
-            field_type = str(_field.type)
+        lfield = resource.get_lfield(self.field)
+        
+        # get option indexes
+        # get representation of the options
 
-        if field_type == "boolean":
+        field = lfield.field
+        
+        if field is None:
+            opt_keys = self.attr.options.keys()
+        elif field.type == "boolean":
             opt_keys = (True, False)
         else:
             # Find unique values of options for that field
-            rows = resource.select(_field, groupby = _field)
-            if field_type.startswith("list"):
+            rows = resource.select(field, groupby=field)
+
+            if field.type.startswith("list"):
                 opt_keys = []
                 for row in rows:
-                    rfield = row[field]
+                    rfield = row[field.name]
                     if rfield != None:
                         try:
                             _opt_keys = rfield.split("|")
                         except:
                             _opt_keys = rfield
+
                         for opt_key in _opt_keys:
                             opt_keys.append(opt_key)
             else:
-                opt_keys = [row[field] for row in rows if row[field] != None]
+                opt_keys = [row[field.name] for row in rows if row[field.name] != None]
             if opt_keys == []:
-                return SPAN(msg, _style="color:#AAA; font-style:italic;")
+                return SPAN(msg, _style="color:#aaa; font-style:italic;")
 
         # Always use the represent of the widget, if present
         represent = self.attr.represent
         # Fallback to the field's represent
-        if not represent or field_type[:9] != "reference":
-            represent = _field.represent
+        if field is None:
+            represent = None
+        elif not represent or field.type[:9] != "reference":
+            represent = field.represent
 
         # Execute, if callable
         if callable(represent):
             opt_list = [(opt_key, represent(opt_key)) for opt_key in opt_keys]
         # Otherwise, feed the format string
-        elif isinstance(represent, str) and field_type[:9] == "reference":
+        elif isinstance(represent, str) and field.type[:9] == "reference":
             # Use the represent string to reduce db calls
             # Find the fields which are needed to represent:
             db = current.db
-            ktable = db[field_type[10:]]
+            ktable = db[field.type[10:]]
             fieldnames = ["id"]
             fieldnames += re.findall("%\(([a-zA-Z0-9_]*)\)s", represent)
             represent_fields = [ktable[fieldname] for fieldname in fieldnames]
@@ -716,17 +727,13 @@ class S3SearchOptionsWidget(S3SearchWidget):
             if not isinstance(value, (list, tuple)):
                 value = [value]
             
-            try:
-                # self.field is a list, but we only want one
-                field = resource.table[self.field[0]]
-            except:
-                # field is virtual
-                raise NotImplementedError
+            lfield = resource.get_lfield(self.field)
+            field = lfield.field
 
-            if str(field.type).startswith("list"):
-                query = S3QueryField(field.name).contains(value)
+            if field is not None and field.type.startswith("list"):
+                query = S3QueryField(self.field).contains(value)
             else:
-                query = S3QueryField(field.name).belongs(value)
+                query = S3QueryField(self.field).belongs(value)
             
             return query
         else:
