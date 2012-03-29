@@ -419,6 +419,7 @@ class S3AssetModel(S3Model):
                              comments(),
                              *meta_fields())
 
+        table.site_id.label = T("Facility/Site")
         table.site_id.readable = True
         table.site_id.writable = True
         table.site_id.widget = None

@@ -2265,26 +2265,25 @@ S3FilterFieldChange({
             self.hrm_certification_onaccept(form)
 
 # =============================================================================
-@current.auth.requires_login()
-def hrm_vars():
+def hrm_vars(module):
     """ Set session and response variables """
+
+    auth = current.auth
+    if not auth.is_logged_in():
+        auth.permission.fail()
 
     s3db = current.s3db
     session = current.session
-    hrm_vars = session.s3.hrm
 
-    settings = current.deployment_settings
-    try:
-        module_name = settings.modules[module].name_nice
-    except:
-        module_name = current.T("Human Resources Management")
-    current.response.title = module_name
+    if session.s3.hrm is None:
+        session.s3.hrm = Storage()
+    hrm_vars = session.s3.hrm
 
     # Automatically choose an organisation
     if "orgs" not in hrm_vars:
         # Find all organisations the current user is a staff
         # member of (+all their branches)
-        user = current.auth.user.pe_id
+        user = auth.user.pe_id
         branches = s3db.pr_get_role_branches(user,
                                              roles="Staff",
                                              entity_type="org_organisation")
@@ -2298,6 +2297,7 @@ def hrm_vars():
             hrm_vars.orgs = None
 
     # Set mode
+    hrm_vars.mode = current.request.vars.get("mode", None)
     if hrm_vars.mode != "personal":
         sr = session.s3.system_roles
         if sr.ADMIN in session.s3.roles or \
@@ -2306,6 +2306,7 @@ def hrm_vars():
             hrm_vars.mode = None
     else:
         hrm_vars.mode = "personal"
+    return
 
 # =============================================================================
 def hrm_hr_represent(id):
