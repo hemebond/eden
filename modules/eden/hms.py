@@ -373,7 +373,7 @@ class HospitalDataModel(S3Model):
                       S3SearchOptionsWidget(
                         name="hospital_facility_type",
                         label=T("Facility Type"),
-                        field=["facility_type"]
+                        field="facility_type"
                       ),
                       # for testing:
                       S3SearchMinMaxWidget(
@@ -381,7 +381,7 @@ class HospitalDataModel(S3Model):
                         method="range",
                         label=T("Total Beds"),
                         comment=T("Select a range for the number of total beds"),
-                        field=["total_beds"]
+                        field="total_beds"
                       ),
                     ))
 
