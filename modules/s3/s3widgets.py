@@ -3131,8 +3131,7 @@ class S3SliderWidget(FormWidget):
         return TAG[""](sliderdiv, sliderinput)
 
 
-# -----------------------------------------------------------------------------
-class S3OptionsMatrixWidget(object):
+class S3OptionsMatrixWidget(FormWidget):
     """
         Constructs a two dimensional array/grid of checkboxes
         with row and column headers.
@@ -3156,7 +3155,7 @@ class S3OptionsMatrixWidget(object):
         """
             Returns the grid/matrix of checkboxes as a web2py TABLE object and
             adds references to required Javascript files.
-            
+
             @type field: Field
             @param field:
                 This gets passed in when the widget is rendered or used.
@@ -3204,9 +3203,10 @@ class S3OptionsMatrixWidget(object):
 
         current.response.s3.scripts.append( "/%s/static/scripts/S3/s3.optionsmatrix.js" % current.request.application )
 
-        return TABLE(grid_header,
-                     TBODY(grid_rows),
-                     _id=self._id,
-                     _class="s3optionsmatrix")
+        # If the table has an id attribute, activate the jQuery plugin for it.
+        if "_id" in attributes:
+            current.response.s3.jquery_ready.append("$('#{0}').s3optionsmatrix();".format(attributes.get('_id')))
+
+        return TABLE(header, TBODY(grid_rows), **attributes)
 
 # END =========================================================================

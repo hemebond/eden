@@ -1045,4 +1045,144 @@ def compose():
     response.view = "msg/compose.html"
     return output
 
+
+def manage_roles():
+    """
+        Allow the organisation admin to manage the roles for users
+        in that organisation
+    """
+    realms = current.auth.user.realms
+
+    if ADMIN not in realms and ORGADMIN not in realms:
+        # raise an error here - user is not permitted to access the role manager
+        auth.permission.fail()
+
+    person_id = request.get_vars.get("person", None)
+    entity_id = request.get_vars.get("entity", None)
+
+    only_people = (db.pr_pentity.instance_type == "pr_person")
+    only_organisations = (db.pr_pentity.instance_type == "org_organisation")
+    only_offices = (db.pr_pentity.instance_type == "org_office")
+    only_groups = (db.pr_pentity.instance_type == "pr_group")
+
+    if person_id:
+        person = _get_object_or_404(db.pr_pentity, person_id, only_people)
+    else:
+        person = None
+
+    if entity_id:
+        entity = _get_object_or_404(db.pr_pentity, entity_id, (only_organisations|only_offices|only_groups))
+    else:
+        entity = None
+
+    if ADMIN in realms:
+        # ADMIN is a site-wide role, so it doesn't have a realm -
+        # need to lookup all PE's in the system, i.e. do a DB query on pr_pentity
+        # for instance_type = org_organisation, org_office or pr_group
+
+        people = s3db.pr_get_entities(types=["pr_person"])
+        entities = s3db.pr_get_entities(types=["org_organisation", "org_office", "pr_group"])
+
+        form = FORM(
+            FIELDSET(
+                LEGEND("User and Organisation Entity"),
+                DIV(
+                    LABEL(T("Select a person: "),
+                        SELECT(
+                            _name='person',
+                            *[OPTION(s3db.pr_pentity_represent(person), _value=str(person.pe_id)) for person in people],
+                            value=person_id
+                        )
+                    )
+                ),
+                DIV(
+                    LABEL(T("Select an entity: "), 
+                        SELECT(
+                            _name='entity',
+                            *[OPTION(s3db.pr_pentity_represent(entity), _value=str(entity.pe_id)) for entity in entities],
+                            value=entity_id
+                        )
+                    )
+                ),
+            ),
+            INPUT(_type='submit', _value='Search'),
+            _method="GET"
+        )
+    elif ORGADMIN in realms:
+        # Get the realm from the current realms
+        realm = realms[ORGADMIN]
+        print realm
+
+    if person and entity:
+        from s3.s3widgets import S3OptionsMatrixWidget
+        field = Storage(name='role')
+        modules = (
+            ("Human Resources", 0, 17, 0, 11, 0),
+            ("Projects", 0, 16, 0, 6, 0),
+            ("Survey", 0, 19, 0, 20, 21),
+            ("Events", 0, 8, 0, 18, 0),
+            ("Assets", 0, 12, 0, 7, 0),
+            ("Logs", 0, 10, 0, 15, 0),
+            ("Members", 0, 14, 0, 9, 0),
+        )
+        roles = ("", "None", "Reader", "Data Entry", "Editor", "Super Editor")
+
+        role_form = FORM(
+            FIELDSET(
+                LEGEND("Roles"),
+                S3OptionsMatrixWidget(modules, roles)(field, [])
+            ),
+            INPUT(_type='submit', _value='Update Roles')
+        )
+
+    return dict(form=form, person=person, entity=entity, role_form=role_form)
+
+def _get_object_or_404(table, id, filters=None):
+    if filters:
+        filters = filters & (table.id == id)
+    else:
+        filters = (table.id == id)
+
+    row = db(filters).select().first()
+    if row:
+        return row
+    else:
+        raise HTTP(404)
+
+def _get_matrix_options():
+    """
+        This fetches all the values required for populating the
+        S3OptionsMatrixWidget.
+    """
+    pass
+
+def _get_modules():
+    """
+        This returns a list of modules with their code,
+        e.g., [("HRM", "Human Resources"),]
+    """
+    pass
+
+def _get_access_levels():
+    """
+        This returns a list of access levels and their code,
+        e.g., [("_READER", "Reader"),]
+    """
+    pass
+
+def _get_role(module_uid, access_level_uid, role_list):
+    """
+        This combines the module and access level UIDs and does a lookup
+        in the role list for the role that matches.
+
+        Returns the id of that role record.
+    """
+    pass
+
+def _get_people():
+    pass
+
+def _get_entities():
+    pass
+
 # END =========================================================================
