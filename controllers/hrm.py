@@ -3,6 +3,7 @@
 """
     Human Resource Management
 """
+from s3.s3widgets import S3OptionsMatrixWidget, S3RadioMatrixWidget
 
 module = request.controller
 resourcename = request.function
@@ -1057,21 +1058,33 @@ def manage_roles():
         # raise an error here - user is not permitted to access the role manager
         auth.permission.fail()
 
+    # Prepare the objects we want to return to the view
+    person = None
+    entity = None
+    form = None
+    role_form = None
+
     person_id = request.get_vars.get("person", None)
     entity_id = request.get_vars.get("entity", None)
 
+    # Filters to apply to pr_pentity lookups
     only_people = (db.pr_pentity.instance_type == "pr_person")
     only_organisations = (db.pr_pentity.instance_type == "org_organisation")
     only_offices = (db.pr_pentity.instance_type == "org_office")
     only_groups = (db.pr_pentity.instance_type == "pr_group")
 
+    # A pr_pentity id has been provided. If it doesn't match a person record,
+    # return a 404 to the user.
     if person_id:
         person = _get_object_or_404(db.pr_pentity, person_id, only_people)
     else:
         person = None
 
+    # A pr_pentity id has been provided. If it doesn't match an organisation,
+    # office or group record, return a 404 to the user.
     if entity_id:
-        entity = _get_object_or_404(db.pr_pentity, entity_id, (only_organisations|only_offices|only_groups))
+        entity = _get_object_or_404(db.pr_pentity, entity_id,
+            (only_organisations|only_offices|only_groups))
     else:
         entity = None
 
@@ -1081,58 +1094,72 @@ def manage_roles():
         # for instance_type = org_organisation, org_office or pr_group
 
         people = s3db.pr_get_entities(types=["pr_person"])
-        entities = s3db.pr_get_entities(types=["org_organisation", "org_office", "pr_group"])
-
-        form = FORM(
-            FIELDSET(
-                LEGEND("User and Organisation Entity"),
-                DIV(
-                    LABEL(T("Select a person: "),
-                        SELECT(
-                            _name='person',
-                            *[OPTION(s3db.pr_pentity_represent(person), _value=str(person.pe_id)) for person in people],
-                            value=person_id
-                        )
-                    )
-                ),
-                DIV(
-                    LABEL(T("Select an entity: "), 
-                        SELECT(
-                            _name='entity',
-                            *[OPTION(s3db.pr_pentity_represent(entity), _value=str(entity.pe_id)) for entity in entities],
-                            value=entity_id
-                        )
-                    )
-                ),
-            ),
-            INPUT(_type='submit', _value='Search'),
-            _method="GET"
-        )
+        entities = s3db.pr_get_entities(types=["org_organisation",
+            "org_office", "pr_group"])
     elif ORGADMIN in realms:
         # Get the realm from the current realms
         realm = realms[ORGADMIN]
-        print realm
+
+        # Fetch the list of users that can be managed by this OrgAdmin
+        # >>> user_ids = s3db.pr_realm_users(realm)
+        # <Storage {1: 'normaluser@example.com', 2: 'admin@example.com'}>
+        people = s3db.pr_realm_users(ADMIN)
+
+    form = FORM(
+        FIELDSET(
+            LEGEND("User and Organisation Entity"),
+            DIV(
+                LABEL(T("Select a person: "),
+                    SELECT(
+                        _name='person',
+                        *[OPTION(name, _value=str(id)) for id, name in people.items()],
+                        value=person_id
+                    )
+                )
+            ),
+            DIV(
+                LABEL(T("Select an entity: "), 
+                    SELECT(
+                        _name='entity',
+                        *[OPTION(name, _value=str(id)) for id, name in entities.items()],
+                        value=entity_id
+                    )
+                )
+            ),
+        ),
+        INPUT(_type='submit', _value='Search'),
+        _method="GET"
+    )
 
     if person and entity:
-        from s3.s3widgets import S3OptionsMatrixWidget
         field = Storage(name='role')
-        modules = (
-            ("Human Resources", 0, 17, 0, 11, 0),
-            ("Projects", 0, 16, 0, 6, 0),
-            ("Survey", 0, 19, 0, 20, 21),
-            ("Events", 0, 8, 0, 18, 0),
-            ("Assets", 0, 12, 0, 7, 0),
-            ("Logs", 0, 10, 0, 15, 0),
-            ("Members", 0, 14, 0, 9, 0),
-        )
-        roles = ("", "None", "Reader", "Data Entry", "Editor", "Super Editor")
+        modules = _get_modules()
+        access_levels = _get_access_levels()
+        options = _get_matrix_options(modules, access_levels)
+        groups = [uid for uid, label in modules]
 
+        # Create the list of column labels
+        # Need an empty value for the module label column, and a column for
+        # the no-access values
+        cols = ["None",]
+        for access_level in access_levels:
+            cols.append(access_level[1]) # append the label
+
+        rows = []
+        groups = []
+        for uid, label in modules:
+            groups.append(uid)
+            rows.append(label)
+
+        # create a form to wrap around the options matrix
         role_form = FORM(
             FIELDSET(
                 LEGEND("Roles"),
-                S3OptionsMatrixWidget(modules, roles)(field, [])
+                S3RadioMatrixWidget(rows, cols, options, groups=groups)(field, [])
             ),
-            INPUT(_type='submit', _value='Update Roles')
+            INPUT(_type='submit', _value='Update Roles'),
+            _method="GET",
+            hidden=dict(person=person.id, entity=entity.id)
         )
 
     return dict(form=form, person=person, entity=entity, role_form=role_form)
@@ -1149,40 +1176,79 @@ def _get_object_or_404(table, id, filters=None):
     else:
         raise HTTP(404)
 
-def _get_matrix_options():
+def _get_matrix_options(modules, access_levels):
     """
         This fetches all the values required for populating the
-        S3OptionsMatrixWidget.
+        S3RadioMatrixWidget.
     """
-    pass
+    roles = _get_roles()
+
+    # Invert the dictionary so we can lookup by UID
+    roles = dict((uid,id) for (id,uid) in roles.items())
+
+    options = []
+    # for each module
+    for module in modules:
+        row = ["",]
+        # for each access level
+        for access_level in access_levels:
+            uid = "%s_%s" % (module[0], access_level[0]) # combine the UIDs
+            row.append(roles[uid])
+
+        options.append(row)
+
+    return options
 
 def _get_modules():
     """
-        This returns a list of modules with their code,
-        e.g., [("HRM", "Human Resources"),]
+        This returns a list of modules with their uid,
+        e.g., [("hrm", "Human Resources"),]
     """
-    pass
+    modules = [
+        ("hrm", "Human Resources"),
+        ("prj", "Projects"),
+        ("srv", "Survey"),
+        ("evt", "Events"),
+        ("ast", "Assets"),
+        ("log", "Logs"),
+        ("mbr", "Members")
+    ]
+    return modules
 
 def _get_access_levels():
     """
-        This returns a list of access levels and their code,
-        e.g., [("_READER", "Reader"),]
+        This returns a list of access levels and their uid,
+        e.g., [("reader", "Reader"),]
     """
-    pass
+    access_levels = [
+        ("reader", "Reader"),
+        ("data", "Data Entry"),
+        ("editor", "Editor"),
+        ("super", "Super Editor")
+    ]
+    return access_levels
 
-def _get_role(module_uid, access_level_uid, role_list):
+def _get_roles():
     """
-        This combines the module and access level UIDs and does a lookup
-        in the role list for the role that matches.
-
-        Returns the id of that role record.
+        Returns a dict of ID and UID of all roles.
     """
-    pass
+    roles = {
+        17: "hrm_reader", 30: "hrm_data", 11: "hrm_editor", 37: "hrm_super",
+        16: "prj_reader", 31: "prj_data", 6: "prj_editor", 38: "prj_super",
+        19: "srv_reader", 32: "srv_data", 20: "srv_editor", 21: "srv_super",
+        8: "evt_reader", 33: "evt_data", 18: "evt_editor", 39: "evt_super",
+        12: "ast_reader", 34: "ast_data", 7: "ast_editor", 40: "ast_super",
+        10: "log_reader", 35: "log_data", 15: "log_editor", 41: "log_super",
+        14: "mbr_reader", 36: "mbr_data", 9: "mbr_editor", 42: "mbr_super",
+    }
+    return roles
 
-def _get_people():
-    pass
+def _get_values():
+    """
+        Just for testing values.
+    """
+    values = ("3", "24", "29", "39", "40")
 
-def _get_entities():
-    pass
+    return values
 
 # END =========================================================================
