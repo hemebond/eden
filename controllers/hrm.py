@@ -1322,7 +1322,10 @@ def manage_roles():
         # Fetch the list of users that can be managed by this OrgAdmin
         # >>> user_ids = s3db.pr_realm_users(realm)
         # <Storage {1: 'normaluser@example.com', 2: 'admin@example.com'}>
-        people = s3db.pr_realm_users(ADMIN)
+        people = s3db.pr_realm_users(realm)
+
+        entities = s3db.pr_get_entities(pe_ids=realm, types=["org_organisation", 
+"org_office"], group=True)
 
     form = FORM(
         FIELDSET(
