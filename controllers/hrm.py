@@ -1273,7 +1273,7 @@ def manage_roles():
     """
     realms = current.auth.user.realms
 
-    if ADMIN not in realms and ORGADMIN not in realms:
+    if ADMIN not in realms and ORG_ADMIN not in realms:
         # raise an error here - user is not permitted to access the role manager
         auth.permission.fail()
 
@@ -1315,9 +1315,9 @@ def manage_roles():
         people = s3db.pr_get_entities(types=["pr_person"])
         entities = s3db.pr_get_entities(types=["org_organisation",
             "org_office", "pr_group"])
-    elif ORGADMIN in realms:
+    elif ORG_ADMIN in realms:
         # Get the realm from the current realms
-        realm = realms[ORGADMIN]
+        realm = realms[ORG_ADMIN]
 
         # Fetch the list of users that can be managed by this OrgAdmin
         # >>> user_ids = s3db.pr_realm_users(realm)
