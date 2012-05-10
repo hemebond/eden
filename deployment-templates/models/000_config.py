@@ -86,24 +86,26 @@ deployment_settings.base.migrate = True
 # To just create the .table files:
 #deployment_settings.base.fake_migrate = True
 
-# Pre-Populate
-# http://eden.sahanafoundation.org/wiki/DeveloperGuidelines/PrePopulate
-# Configure/disable pre-population of the database.
-# To pre-populate the database On 1st run should specify directory(s) in 
-# /private/prepopulate/
-# eg:
-# ["default"] (1 is a shortcut for this)
-# ["demo/Standard"]
-# ["demo/IFRC_Train"]
-# ["roles", "user"]
-# Unless doing a manual DB migration, where prepopulate = 0
-# In Production, prepopulate = 0 (to save 1x DAL hit every page)
-deployment_settings.base.prepopulate = 1
+# Enable/disable pre-population of the database.
+# Should be non-zero on 1st_run to pre-populate the database
+# - unless doing a manual DB migration
+# Then set to zero in Production (to save 1x DAL hit every page)
 # NOTE: the web UI will not be accessible while the DB is empty,
 # instead run:
 #   python web2py.py -N -S eden -M
 # to create the db structure, then exit and re-import the data.
-
+#
+# The prepopulate flag is used to determine what data will be used to
+# populate the system when it has a clean database, it will take a list
+# of directory names, the base directory is private/prepopulate,
+# and should not be included. Each folder must include a file tasks.cfg
+# which indicates what to import.
+# If multiple folders are included then the files will be imported in order.
+# Any duplicate imports will be ignored.
+deployment_settings.base.prepopulate = ["IFRC_Train"]
+#deployment_settings.base.prepopulate = ["roles", "user"]
+# for backward compatibility numbers can also be used but has been deprecated
+#deployment_settings.base.prepopulate = [4, 24, 23, 10]
 
 # Set this to True to use Content Delivery Networks to speed up Internet-facing sites
 deployment_settings.base.cdn = False
@@ -292,9 +294,11 @@ deployment_settings.gis.display_L0 = False
 # 3: Apply Controller ACLs
 # 4: Apply both Controller & Function ACLs
 # 5: Apply Controller, Function & Table ACLs
-# 6: Apply Controller, Function, Table & Organisation ACLs
+# 6: Apply Controller, Function, Table ACLs and Entity Realm
+# 7: Apply Controller, Function, Table ACLs and Entity Realm + Hierarchy
+# 8: Apply Controller, Function, Table ACLs, Entity Realm + Hierarchy and Delegations
 #
-#deployment_settings.security.policy = 6 # Organisation-ACLs
+#deployment_settings.security.policy = 7 # Organisation-ACLs
 #acl = deployment_settings.aaa.acl
 #deployment_settings.aaa.default_uacl =  acl.READ   # User ACL
 #deployment_settings.aaa.default_oacl =  acl.CREATE | acl.READ | acl.UPDATE # Owner ACL
@@ -346,7 +350,8 @@ deployment_settings.gis.display_L0 = False
 #deployment_settings.req.show_quantity_transit = False
 #deployment_settings.req.multiple_req_items = False
 #deployment_settings.req.use_commit = False
-#deployment_settings.req.use_req_number = False
+deployment_settings.req.use_req_number = True
+deployment_settings.req.generate_req_number = True
 # Restrict the type of requests that can be made, valid values in the
 # list are ["Stock", "People", "Other"]. If this is commented out then
 # all types will be valid.
@@ -420,14 +425,15 @@ deployment_settings.gis.display_L0 = False
 #deployment_settings.project.drr = True
 # Uncomment this to use Milestones in project/task.
 #deployment_settings.project.milestones = True
-deployment_settings.project.organisation_roles = {
-    1: T("Lead Implementer"), # T("Host National Society")
-    2: T("Partner"), # T("Partner National Society")
-    3: T("Donor"),
-    4: T("Customer"), # T("Beneficiary")?
-    5: T("Super"), # T("Beneficiary")?
-}
-deployment_settings.project.organisation_lead_role = 1
+# Uncomment this to customise
+#deployment_settings.project.organisation_roles = {
+#    1: T("Lead Implementer"), # T("Host National Society")
+#    2: T("Partner"), # T("Partner National Society")
+#    3: T("Donor"),
+#    4: T("Customer"), # T("Beneficiary")?
+#    5: T("Super"), # T("Beneficiary")?
+#}
+#deployment_settings.project.organisation_lead_role = 1
 
 # Save Search Widget
 #deployment_settings.save_search.widget = False
