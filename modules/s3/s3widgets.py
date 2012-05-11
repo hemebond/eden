@@ -3257,7 +3257,7 @@ class S3RadioMatrixWidget(FormWidget):
         self.groups = groups
 
     @staticmethod
-    def _build_header(labels):
+    def build_header(labels):
         cells = [TH(),] # start with an empty th over the row labels
         for label in labels:
             cells.append(TH(label, _scope="col"))
@@ -3285,7 +3285,7 @@ class S3RadioMatrixWidget(FormWidget):
             values = [str(value)]
 
         # Create the table head
-        head = self._build_header(self.cols)
+        head = self.build_header(self.cols)
 
         # Create the table body cells
         rows = []
@@ -3301,6 +3301,7 @@ class S3RadioMatrixWidget(FormWidget):
 
             for option in options:
                 # This determines if the radiobox should be checked
+                # @todo: rewrite this properly to accept standard form.vars
                 value = [value for value in values if value in options]
                 if value:
                     value = value[-1:][0]

@@ -1271,11 +1271,6 @@ def manage_roles():
         Allow the organisation admin to manage the roles for users
         in that organisation
     """
-    realms = current.auth.user.realms
-
-    if ADMIN not in realms and ORG_ADMIN not in realms:
-        # raise an error here - user is not permitted to access the role manager
-        auth.permission.fail()
 
     # Prepare the objects we want to return to the view
     person = None
@@ -1324,7 +1319,7 @@ def manage_roles():
         # <Storage {1: 'normaluser@example.com', 2: 'admin@example.com'}>
         people = s3db.pr_realm_users(realm)
 
-        entities = s3db.pr_get_entities(pe_ids=realm, types=["org_organisation", 
+        entities = s3db.pr_get_entities(pe_ids=realm, types=["org_organisation",
 "org_office"], group=True)
 
     form = FORM(
@@ -1340,7 +1335,7 @@ def manage_roles():
                 )
             ),
             DIV(
-                LABEL(T("Select an entity: "), 
+                LABEL(T("Select an entity: "),
                     SELECT(
                         _name='entity',
                         *[OPTION(name, _value=str(id)) for id, name in entities.items()],
@@ -1386,91 +1381,6 @@ def manage_roles():
 
     return dict(form=form, person=person, entity=entity, role_form=role_form)
 
-def _get_object_or_404(table, id, filters=None):
-    if filters:
-        filters = filters & (table.id == id)
-    else:
-        filters = (table.id == id)
 
-    row = db(filters).select().first()
-    if row:
-        return row
-    else:
-        raise HTTP(404)
-
-def _get_matrix_options(modules, access_levels):
-    """
-        This fetches all the values required for populating the
-        S3RadioMatrixWidget.
-    """
-    roles = _get_roles()
-
-    # Invert the dictionary so we can lookup by UID
-    roles = dict((uid,id) for (id,uid) in roles.items())
-
-    options = []
-    # for each module
-    for module in modules:
-        row = ["",]
-        # for each access level
-        for access_level in access_levels:
-            uid = "%s_%s" % (module[0], access_level[0]) # combine the UIDs
-            row.append(roles[uid])
-
-        options.append(row)
-
-    return options
-
-def _get_modules():
-    """
-        This returns a list of modules with their uid,
-        e.g., [("hrm", "Human Resources"),]
-    """
-    modules = [
-        ("hrm", "Human Resources"),
-        ("prj", "Projects"),
-        ("srv", "Survey"),
-        ("evt", "Events"),
-        ("ast", "Assets"),
-        ("log", "Logs"),
-        ("mbr", "Members")
-    ]
-    return modules
-
-def _get_access_levels():
-    """
-        This returns a list of access levels and their uid,
-        e.g., [("reader", "Reader"),]
-    """
-    access_levels = [
-        ("reader", "Reader"),
-        ("data", "Data Entry"),
-        ("editor", "Editor"),
-        ("super", "Super Editor")
-    ]
-    return access_levels
-
-def _get_roles():
-    """
-        Returns a dict of ID and UID of all roles.
-    """
-    roles = {
-        17: "hrm_reader", 30: "hrm_data", 11: "hrm_editor", 37: "hrm_super",
-        16: "prj_reader", 31: "prj_data", 6: "prj_editor", 38: "prj_super",
-        19: "srv_reader", 32: "srv_data", 20: "srv_editor", 21: "srv_super",
-        8: "evt_reader", 33: "evt_data", 18: "evt_editor", 39: "evt_super",
-        12: "ast_reader", 34: "ast_data", 7: "ast_editor", 40: "ast_super",
-        10: "log_reader", 35: "log_data", 15: "log_editor", 41: "log_super",
-        14: "mbr_reader", 36: "mbr_data", 9: "mbr_editor", 42: "mbr_super",
-    }
-    return roles
-
-def _get_values():
-    """
-        Just for testing values.
-    """
-    values = ("3", "24", "29", "39", "40")
-
-    return values
 
 # END =========================================================================
