@@ -3279,6 +3279,7 @@ class S3RadioMatrixWidget(FormWidget):
             @param attributes:
                 HTML attributes to assign to the table.
         """
+        print "value: %s" % value
         if isinstance(value, (list, tuple)):
             values = [str(v) for v in value]
         else:
@@ -3301,10 +3302,9 @@ class S3RadioMatrixWidget(FormWidget):
 
             for option in options:
                 # This determines if the radiobox should be checked
-                # @todo: rewrite this properly to accept standard form.vars
                 value = [value for value in values if value in options]
                 if value:
-                    value = value[-1:][0]
+                    value = value[-1:][0] # fetch the last item out of the list
                 else:
                     value = ""
 

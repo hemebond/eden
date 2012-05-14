@@ -6229,8 +6229,6 @@ class S3RoleMatrix(S3Method):
     (Role Manager UI for organisation administrators)
     """
 
-    controllers = Storage()
-
     # -------------------------------------------------------------------------
     def apply_method(self, r, **attr):
         """
@@ -6239,14 +6237,14 @@ class S3RoleMatrix(S3Method):
         method = self.method
         manager = current.manager
 
-
-        if method == "list":
-            output = self._list(r, **attr)
-        elif method in ("read", "create", "update"):
-            output = self._edit(r, **attr)
-        elif method == "delete":
-            output = self._delete(r, **attr)
-        elif method == "roles" and r.name == "person":
+        # if method == "list":
+        #     output = self._list(r, **attr)
+        # elif method in ("read", "create", "update"):
+        #     output = self._edit(r, **attr)
+        # elif method == "delete":
+        #     output = self._delete(r, **attr)
+        # elif method == "roles" and r.name == "person":
+        if method == "roles" and r.name == "person":
             output = self._roles(r, **attr)
         elif method == "users" and r.name == "organisation":
             output = self._users(r, **attr)
@@ -6257,276 +6255,253 @@ class S3RoleMatrix(S3Method):
             current.session.s3.cancel = r.url()
         return output
 
-    def _roles(self, r, **attr):
-        # Prepare the objects we want to return to the view
-        person = None
-        entity = None
-        form = None
-        role_form = None
-
-        person_id = request.get_vars.get("person", None)
-        entity_id = request.get_vars.get("entity", None)
-
-        # Filters to apply to pr_pentity lookups
-        only_people = (db.pr_pentity.instance_type == "pr_person")
-        only_organisations = (db.pr_pentity.instance_type == "org_organisation")
-        only_offices = (db.pr_pentity.instance_type == "org_office")
-        only_groups = (db.pr_pentity.instance_type == "pr_group")
-
-        # A pr_pentity id has been provided. If it doesn't match a person record,
-        # return a 404 to the user.
-        if person_id:
-            person = _get_object_or_404(db.pr_pentity, person_id, only_people)
-        else:
-            person = None
-
-        # A pr_pentity id has been provided. If it doesn't match an organisation,
-        # office or group record, return a 404 to the user.
-        if entity_id:
-            entity = _get_object_or_404(db.pr_pentity, entity_id,
-                (only_organisations|only_offices|only_groups))
-        else:
-            entity = None
-
-        if ADMIN in realms:
-            # ADMIN is a site-wide role, so it doesn't have a realm -
-            # need to lookup all PE's in the system, i.e. do a DB query on pr_pentity
-            # for instance_type = org_organisation, org_office or pr_group
-
-            people = s3db.pr_get_entities(types=["pr_person"])
-            entities = s3db.pr_get_entities(types=["org_organisation",
-                "org_office", "pr_group"])
-        elif ORG_ADMIN in realms:
-            # Get the realm from the current realms
-            realm = realms[ORG_ADMIN]
-
-            # Fetch the list of users that can be managed by this OrgAdmin
-            # >>> user_ids = s3db.pr_realm_users(realm)
-            # <Storage {1: 'normaluser@example.com', 2: 'admin@example.com'}>
-            people = s3db.pr_realm_users(realm)
-
-            entities = s3db.pr_get_entities(pe_ids=realm, types=["org_organisation",
-    "org_office"], group=True)
-
-        form = FORM(
-            FIELDSET(
-                LEGEND("User and Organisation Entity"),
-                DIV(
-                    LABEL(T("Select a person: "),
-                        SELECT(
-                            _name='person',
-                            *[OPTION(name, _value=str(id)) for id, name in people.items()],
-                            value=person_id
-                        )
-                    )
-                ),
-                DIV(
-                    LABEL(T("Select an entity: "),
-                        SELECT(
-                            _name='entity',
-                            *[OPTION(name, _value=str(id)) for id, name in entities.items()],
-                            value=entity_id
-                        )
-                    )
-                ),
-            ),
-            INPUT(_type='submit', _value='Search'),
-            _method="GET"
-        )
-
-        if person and entity:
-            field = Storage(name='role')
-            modules = _get_modules()
-            access_levels = _get_access_levels()
-            options = _get_matrix_options(modules, access_levels)
-            groups = [uid for uid, label in modules]
-
-            # Create the list of column labels
-            # Need an empty value for the module label column, and a column for
-            # the no-access values
-            cols = ["None",]
-            for access_level in access_levels:
-                cols.append(access_level[1]) # append the label
-
-            rows = []
-            groups = []
-            for uid, label in modules:
-                groups.append(uid)
-                rows.append(label)
-
-            # create a form to wrap around the options matrix
-            role_form = FORM(
-                FIELDSET(
-                    LEGEND("Roles"),
-                    S3RadioMatrixWidget(rows, cols, options, groups=groups)(field, [])
-                ),
-                INPUT(_type='submit', _value='Update Roles'),
-                _method="GET",
-                hidden=dict(person=person.id, entity=entity.id)
-            )
-
-        return dict(form=form, person=person, entity=entity, role_form=role_form)
-
-    def _users(self, request, **attr):
+    def _roles(self, request, **kwargs):
         """
-            In this view we have a pr_pentity record.
+        In this view we have a pr_pentity record.
 
-            * Check that this entity is in the orgadmin's realm.
-            * Fetch the people that fall within the orgadmin's realm.
-            * if we have a person record (supplied via URL query string):
-                * fetch that person
-                * Show the list of people in a select element with that
-                  person selected
-            * if we have a person:
-                * show the role matrix form
-                    * form contains reference to entity and person
+        * Check that this entity is in the orgadmin's realm.
+        * Fetch the people that fall within the orgadmin's realm.
+        * if we have a user id (supplied via URL query string):
+            * fetch that user
+            * Show the list of users in a select element with that
+              user selected
+        * if we have a user:
+            * show the role matrix form
+                * form contains reference to entity and user
         """
+        self.request = request
+        self.kwargs = kwargs
         s3db = current.s3db
         db = current.db
         T = current.T
 
-        system_roles = current.auth.get_system_roles()
-        ORG_ADMIN = system_roles.ORG_ADMIN
-        ADMIN = system_roles.ADMIN
+        current.response.view = "admin/manage_roles.html"
 
-        realms = current.auth.user.realms
+        # Check we're logged in as an admin or org_admin
+        # and fetch the realm
+        realm = self.get_realm()
 
-        if ADMIN not in realms and ORG_ADMIN not in realms:
-            # raise an error here - user is not permitted to access the role manager
-            auth.permission.fail()
+        # We're accessing this method from a person
+        self.user = self.get_user_by_pe_id(request.record.pe_id)
 
-        # Prepare the objects we want to return to the view
-        user = None
-        entity = None
-        form = None
-        role_form = None
+        # If the admin has selected an entity, fetch it
+        entity_id = request.get_vars.get('entity', None)
+        if entity_id not in realm:
+            # user is not allowed to edit roles on this entity
+            current.auth.permission.fail()
+        self.entity = self.get_entity_by_id(entity_id)
 
-        user_id = request.get_vars.get("user", None)
-        entity_id = request.get_vars.get("entity", None)
-
-        if ADMIN in realms:
-            # ADMIN is a site-wide role, so it doesn't have a realm -
-            # need to lookup all PE's in the system, i.e. do a DB query on pr_pentity
-            # for instance_type = org_organisation, org_office or pr_group
-            #users = s3db.pr_get_entities(types=["pr_person"])
-            #users = s3db.pr_realm_users(realms[ADMIN])
-            users = db().select(s3db.auth_user.id, s3db.auth_user.email)
-        elif ORG_ADMIN in realms:
-            # Get the realm from the current realms
-            realm = realms[ORG_ADMIN]
-
-            # Fetch the list of users that can be managed by this OrgAdmin
-            # >>> user_ids = s3db.pr_realm_users(realm)
-            # <Storage {1: 'normaluser@example.com', 2: 'admin@example.com'}>
-            #users = s3db.pr_get_entities(types=["pr_person"])
-            users = s3db.pr_realm_users(realm)
-
-            #entities = s3db.pr_get_entities(pe_ids=realm, types=["org_organisation", "org_office"], group=True)
-
-        print users
-        form = FORM(
-            FIELDSET(
-                LEGEND("Select User"),
-                LABEL(T("User: "), _for='role_user'),
-                SELECT(
-                    _name='user',
-                    _id='role_user',
-                    *[OPTION(user.email, _value=str(user.id)) \
-                        for user in users],
-                    value=user_id
-                )
-            ),
-            INPUT(_type='submit', _value=T('Select')),
-            _method="GET"
+        # Get entities to populate the select form
+        entities = s3db.pr_get_entities(pe_ids=realm,
+                                        types=["org_organisation", "org_office"],
+                                        group=True)
+        form = SQLFORM.factory(
+                Field('entity',
+                      T('Entity'),
+                      requires=IS_IN_SET(entities),
+                      default=user_id
+                ),
+                _method='GET',
+                submit_button='Select'
         )
 
-        # We're access this method from an entity (org, office or group)
-        # so we already have a record
-        self.entity = request.record
-        title = self.entity.name
-
-        if user_id:
-            self.user = db((user_id == s3db.pr_person_user.pe_id) & \
-                   (s3db.auth_user.id == s3db.pr_person_user.user_id) & \
-                   (s3db.auth_user.registration_key != "disabled")).select().first()
-        else:
-            self.user = None
-
         if self.user and self.entity:
-            field = Storage(name='role')
             modules = self.get_modules()
-            access_levels = self.get_access_levels()
-            user_roles = self.get_user_roles()
-
             module_uids = modules.keys()
             row_labels = modules.values()
 
+            access_levels = self.get_access_levels()
             access_level_uids = access_levels.keys()
             # Need "None" as a value for the no-access value
-            col_labels = ['None',] + access_levels.values()
+            col_labels = [T('None'),] + access_levels.values()
 
             options = self.get_matrix_options(module_uids, access_level_uids)
 
-            # create a form to wrap around the options matrix
-            role_form = FORM(
-                FIELDSET(
-                    LEGEND("%s %s" % (T("Roles for"), self.user.auth_user.email)),
-                    S3RadioMatrixWidget(row_labels, col_labels, options, groups=module_uids)(field, user_roles, _class="dataTable display")
-                ),
-                INPUT(_type='submit', _value='Update'),
-                _method="POST",
-                hidden=dict(user=self.user.auth_user.id, entity=self.entity.id)
-            )
+            user_roles = self.get_user_roles(self.user,
+                                             self.entity,
+                                             module_uids)
 
-            if role_form.accepts(request.post_vars, current.session,
-                                 formname="edit_user_%s_roles" % user_id):
-                before = user_roles
+            role_form = self.form_factory(self.user,
+                                          self.entity,
+                                          row_labels,
+                                          col_labels,
+                                          options,
+                                          module_uids)
+            role_form.vars.update(user_roles)
+
+            if role_form.accepts(self.request.post_vars, current.session, keepvalues=True):
+                before = user_roles.values()
                 after = [role_uid for group, role_uid in role_form.vars.items() if group[:5] == 'role_']
 
-                for role_uid in before:
-                    # If role_uid is not in after,
-                    # the access level has changed.
-                    if role_uid and role_uid not in after:
-                        current.auth.s3_retract_role(user_id, role_uid, self.entity.pe_id)
-
-                for role_uid in after:
-                    # A blank role_uid means None has been selected.
-                    # If the role_uid is not in before,
-                    # the access level has changed
-                    if role_uid and role_uid not in before:
-                        current.auth.s3_assign_role(user_id, role_uid, self.entity.pe_id)
+                self.update_roles(self.user, self.entity, before, after)
 
                 current.session.confirmation = T("Roles updated")
                 redirect(request.url())
 
+            return dict(form=form, user=self.user, entity=self.entity, role_form=role_form, role_form_cols=col_labels)
+
+        return dict(form=form, entity=self.entity)
+
+    def _users(self, request, **kwargs):
+        """
+        In this view we have a pr_pentity record.
+
+        * Check that this entity is in the orgadmin's realm.
+        * Fetch the people that fall within the orgadmin's realm.
+        * if we have a user id (supplied via URL query string):
+            * fetch that user
+            * Show the list of users in a select element with that
+              user selected
+        * if we have a user:
+            * show the role matrix form
+                * form contains reference to entity and user
+        """
+        self.request = request
+        self.kwargs = kwargs
+        s3db = current.s3db
+        db = current.db
+        T = current.T
+
         current.response.view = "admin/manage_roles.html"
 
-        return dict(title=title, form=form, user=user, entity=entity, role_form=role_form)
+        # Check we're logged in as an admin or org_admin
+        # and fetch the realm
+        realm = self.get_realm()
 
-    @staticmethod
-    def get_object_or_404(table, id, filters=None):
-        if filters:
-            filters = filters & (table.id == id)
-        else:
-            filters = (table.id == id)
+        # This is the user account the roles will apply to
+        user_id = request.get_vars.get("user", None)
+        self.user = self.get_user_by_id(user_id)
 
-        row = current.db(filters).select().first()
-        if row:
-            return row
-        else:
-            raise HTTP(404)
+        # We're access this method from an entity (org, office or group)
+        # so we already have a record
+        self.entity = request.record
+        if self.entity.pe_id not in realm:
+            # user is not allowed to edit roles on this entity
+            current.auth.permission.fail()
 
-    @staticmethod
-    def get_matrix_options(module_uids, access_level_uids):
+        users = s3db.pr_realm_users(realm)
+        form = SQLFORM.factory(
+                Field('user',
+                      T('User'),
+                      requires=IS_IN_SET(users),
+                      default=user_id
+                ),
+                _method='GET',
+                submit_button='Select'
+        )
+
+        role_form = None
+
+        if self.user and self.entity:
+            modules = self.get_modules()
+            module_uids = modules.keys()
+            row_labels = modules.values()
+
+            access_levels = self.get_access_levels()
+            access_level_uids = access_levels.keys()
+            # Need "None" as a value for the no-access value
+            col_labels = [T('None'),] + access_levels.values()
+
+            options = self.get_matrix_options(module_uids, access_level_uids)
+
+            user_roles = self.get_user_roles(self.user,
+                                             self.entity,
+                                             module_uids)
+
+            role_form = self.form_factory(self.user,
+                                          self.entity,
+                                          row_labels,
+                                          col_labels,
+                                          options,
+                                          module_uids)
+            role_form.vars.update(user_roles)
+
+            if role_form.accepts(self.request.post_vars, current.session, keepvalues=True):
+                before = user_roles.values()
+                after = [role_uid for group, role_uid in role_form.vars.items() if group[:5] == 'role_']
+
+                self.update_roles(self.user, self.entity, before, after)
+
+                current.session.confirmation = T("Roles updated")
+                redirect(request.url())
+
+            return dict(form=form, user=self.user, entity=self.entity, role_form=role_form, role_form_cols=col_labels)
+
+        return dict(form=form, entity=self.entity)
+
+    def get_realm(self):
         """
-            This fetches all the values required for populating the
-            S3RadioMatrixWidget.
+        Returns the realm (pe_ids) that this user can manage
+        or raises a permission error if the user is not logged in
+        """
+        system_roles = current.auth.get_system_roles()
+        ORG_ADMIN = system_roles.ORG_ADMIN
+        ADMIN = system_roles.ADMIN
+
+        if current.auth.user:
+            realms = current.auth.user.realms
+        else:
+            # User is not logged in
+            current.auth.permission.fail()
+
+        # Get the realm from the current realms
+        if ADMIN in realms:
+            return realms[ADMIN]
+        elif ORG_ADMIN in realms:
+            return realms[ORG_ADMIN]
+        else:
+            # raise an error here - user is not permitted to access the role matrix
+            current.auth.permission.fail()
+
+    def get_entity(self, entity_id):
+        pass
+
+    def get_user_by_id(self, user_id):
+        s3db = current.s3db
+        db = current.db
+
+        if user_id:
+            return db((user_id == s3db.auth_user.id) & \
+                   (s3db.auth_user.registration_key != "disabled")).select().first()
+
+        return None
+
+    def get_user_by_pe_id(self, pe_id):
+        s3db = current.s3db
+        db = current.db
+
+        if user_id:
+            query = (pr_person_user.pe_id == pe_id) & \
+                    (pr_person_user.user_id == s3db.auth_user.id) & \
+                    (s3db.auth_user.registration_key != "disabled")
+            return db(query).select(db.auth_user.ALL).first()
+
+        return None        
+
+    def get_modules(self):
+        """
+        This returns a list of modules with their uid,
+        e.g., [("hrm", "Human Resources"),]
+        """
+        return current.deployment_settings.get_aaa_role_modules()
+
+    def get_access_levels(self):
+        """
+        This returns a list of access levels and their uid,
+        e.g., [("reader", "Reader"),]
+        """
+        return current.deployment_settings.get_aaa_access_levels()
+
+    def get_matrix_options(self, module_uids, access_level_uids):
+        """
+        This fetches all the values required for populating the
+        S3RadioMatrixWidget.
         """
         options = []
         # for each module
         for module in module_uids:
             # The first value is for 'None' access level
-            row = ["",]
+            row = [None,]
             # for each access level
             for access_level in access_level_uids:
                 uid = "%s_%s" % (module, access_level) # combine the UIDs
@@ -6536,58 +6511,76 @@ class S3RoleMatrix(S3Method):
 
         return options
 
-    @staticmethod
-    def get_modules():
-        """
-            This returns a list of modules with their uid,
-            e.g., [("hrm", "Human Resources"),]
-        """
-        return current.deployment_settings.get_aaa_role_modules()
+    def form_factory(self, user, entity, row_labels, col_labels, options, groups):
+        fields = []
+        for idx, option_list in enumerate(options):
+            name = "%s_%s" % ('role', groups[idx])
+            field = self.field_factory(name, row_labels[idx], option_list)
+            fields.append(field)
+
+        form = SQLFORM.factory(*fields, hidden=dict(user=user.id, entity=entity.id), _method="POST", _class="test")
+        form.custom['matrix_access_level_labels'] = col_labels
+
+        return form
+
+    def field_factory(self, name, label, options):
+        return Field(
+            name,
+            label=label,
+            widget=lambda field,value: self.radio_matrix_row(field, value),
+            requires=IS_IN_SET(options)
+        )
 
     @staticmethod
-    def get_access_levels():
-        """
-            This returns a list of access levels and their uid,
-            e.g., [("reader", "Reader"),]
-        """
-        return current.deployment_settings.get_aaa_access_levels()
+    def radio_matrix_row(field, value, **attributes):
+        table = SQLFORM.widgets.radio.widget(field, value, _class="test", **attributes)
+        return [td.element('input') for td in table.elements('td')]
 
-    def get_user_roles(self):
+    def update_roles(self, user, entity, before, after):
         """
-            Returns the current roles for the user for
-            the current entity.
+        Update the users roles on entity based on the selected roles
+        in before and after
+        """
+        for role_uid in before:
+            # If role_uid is not in after,
+            # the access level has changed.
+            if role_uid != 'None' and role_uid not in after:
+                print "removing %s" % role_uid
+                current.auth.s3_retract_role(user.id, role_uid, entity.pe_id)
+
+        for role_uid in after:
+            # A blank role_uid means None has been selected.
+            # If the role_uid is not in before,
+            # the access level has changed
+            if role_uid != 'None' and role_uid not in before:
+                print "adding %s" % role_uid
+                current.auth.s3_assign_role(user.id, role_uid, entity.pe_id)
+
+    def get_user_roles(self, user, entity, module_uids):
+        """
+        Returns the current roles for the user for
+        the current entity.
         """
         # Get current memberships
         mtable = current.auth.settings.table_membership
         utable = current.auth.settings.table_user
         gtable = current.auth.settings.table_group
         query = (mtable.deleted != True) & \
-                (mtable.user_id == self.user.auth_user.id) & \
+                (mtable.user_id == user.id) & \
                 (utable.deleted != True) & \
                 (mtable.user_id == utable.id) & \
                 (gtable.deleted != True) & \
                 (mtable.group_id == gtable.id) & \
-                (mtable.pe_id == self.entity.pe_id)
-        # if not use_realms:
-        #     query &= ((mtable.pe_id == None) | (mtable.pe_id == 0))
-        # rows = current.db(query).select(mtable.id,
-        #                         mtable.pe_id,
-        #                         utable.id,
-        #                         utable.first_name,
-        #                         utable.last_name,
-        #                         utable["email"])
-        rows = current.db(query).select(mtable.pe_id, gtable.uuid)
-        # entities = [row[mtable.pe_id] for row in rows]
-        # if use_realms:
-        #     entity_repr = self._entity_represent(entities)
-        # else:
-        #     entity_repr = Storage()
-        #print "rows: %s" % rows
-        #assigned = [row[utable.id] for row in rows]
-        #print "assigned: %s" % assigned
+                (mtable.pe_id == entity.pe_id)
+        rows = current.db(query).select(gtable.uuid)
 
-        values = [row[gtable.uuid] for row in rows]
-        #print "values: %s" % values
-
+        # We only want roles that will be shown in the matrix
+        values = {}
+        for row in rows:
+            role = row[gtable.uuid]
+            module_uid = role.split('_')[0]
+            if module_uid in module_uids:
+              field_name = "%s_%s" % ('role', module_uid)
+              values[field_name] = role
         return values
 # END =========================================================================
