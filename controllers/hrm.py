@@ -3,7 +3,7 @@
 """
     Human Resource Management
 """
-from s3.s3widgets import S3OptionsMatrixWidget, S3RadioMatrixWidget
+from s3.s3widgets import S3OptionsMatrixWidget
 
 module = request.controller
 resourcename = request.function
@@ -592,6 +592,9 @@ def person():
     s3mgr.model.set_method("pr", resourcename,
                            method="contacts",
                            action=s3db.pr_contacts)
+    # Custom Method for user roles
+    s3mgr.model.set_method('pr', resourcename, method="roles",
+               action=s3base.S3RoleMatrix())
 
     if deployment_settings.has_module("asset"):
         # Assets as component of people
