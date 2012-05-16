@@ -6278,6 +6278,7 @@ class S3RoleMatrix(S3Method):
         else:
             user.name = None
         self.output['user'] = user
+        self.output['title'] = user.name
 
         entities = s3db.pr_get_entities(pe_ids=realm, types=['org_organisation', 'org_office'], group=True)
 
@@ -6357,6 +6358,7 @@ class S3RoleMatrix(S3Method):
         entity.id = request.record.pe_id
         entity.name = s3db.pr_get_entities(pe_ids=[entity.id], types=['org_organisation', 'org_office'])[entity.id]
         self.output['entity'] = entity
+        self.output['title'] = entity.name
 
         # Check that the orgadmin has permission to edit roles
         # for this entity
