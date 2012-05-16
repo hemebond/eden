@@ -60,7 +60,7 @@ from gluon.contrib.login_methods.oauth20_account import OAuthAccount
 
 from s3method import S3Method
 from s3validators import IS_ACL
-from s3widgets import S3ACLWidget, CheckboxesWidgetS3, S3RadioMatrixWidget
+from s3widgets import S3ACLWidget, CheckboxesWidgetS3
 
 from s3utils import s3_mark_required
 from s3fields import s3_uid, s3_timestamp, s3_deletion_status
