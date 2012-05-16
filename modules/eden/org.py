@@ -1571,6 +1571,7 @@ def org_rheader(r, tabs=[]):
                     (T("Offices"), "office"),
                     (T("Staff & Volunteers"), "human_resource"),
                     (T("Projects"), "project"),
+                    (T("User Roles"), "users"),
                     #(T("Tasks"), "task"),
                    ]
 
@@ -1624,6 +1625,7 @@ def org_rheader(r, tabs=[]):
         except:
             pass
         tabs.append((T("Attachments"), "document"))
+        tabs.append((T("User Roles"), "users"))
 
 
         logo = org_organisation_logo(record.organisation_id)

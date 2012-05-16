@@ -5,6 +5,15 @@
 {{except:}}
 	{{pass}}
 
+<div id='rheader'>
+{{try:}}
+	{{=XML(rheader)}}
+</div>
+<div id='component'>
+{{except:}}
+<div>
+{{pass}}
+
 {{if globals().get('form', False):}}
 	<div class="form-container">
 		{{=form}}
@@ -49,3 +58,4 @@
 		{{=role_form.custom.end}}
 	</div>
 {{pass}}
+</div>

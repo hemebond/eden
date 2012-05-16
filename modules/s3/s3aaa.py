@@ -6263,6 +6263,7 @@ class S3RoleMatrix(S3Method):
         T = current.T
 
         current.response.view = "admin/manage_roles.html"
+        self.output['title'] = T('User Roles')
 
         # Check we're logged in as an admin or org_admin
         # and fetch the realm
@@ -6278,7 +6279,6 @@ class S3RoleMatrix(S3Method):
         else:
             user.name = None
         self.output['user'] = user
-        self.output['title'] = user.name
 
         entities = s3db.pr_get_entities(pe_ids=realm, types=['org_organisation', 'org_office'], group=True)
 
@@ -6310,12 +6310,14 @@ class S3RoleMatrix(S3Method):
             options.append(optgroup)
 
         # The form for selecting a user
-        self.output['form'] = FORM(TABLE(TR(TD(LABEL('%s: ' % T('Entity'),
-                                                     _for='entity')),
+        self.output['form'] = FORM(TABLE(TR(TD(LABEL('%s: ' % T('Organization or Office'),
+                                                     _for='entity'),
+                                               _class="w2p_fl"),
                                             TD(SELECT(OPTION(''),
                                                       *options,
                                                       _name="entity",
-                                                      value=entity.id))),
+                                                      value=entity.id),
+                                               _class="w2p_fw")),
                                          TR(TD(),
                                             TD(INPUT(_type='submit',
                                                      _value=T('Select'))))),
@@ -6338,6 +6340,7 @@ class S3RoleMatrix(S3Method):
         T = current.T
 
         current.response.view = "admin/manage_roles.html"
+        self.output['title'] = T('User Roles')
 
         # Check we're logged in as an admin or org_admin
         # and fetch the realm
@@ -6358,7 +6361,6 @@ class S3RoleMatrix(S3Method):
         entity.id = request.record.pe_id
         entity.name = s3db.pr_get_entities(pe_ids=[entity.id], types=['org_organisation', 'org_office'])[entity.id]
         self.output['entity'] = entity
-        self.output['title'] = entity.name
 
         # Check that the orgadmin has permission to edit roles
         # for this entity
