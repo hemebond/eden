@@ -368,7 +368,7 @@ class S3HRModel(S3Model):
         ltable = s3db.pr_person_user
         htable = s3db.hrm_human_resource
 
-        if hasattr(form, "vars"):
+        if "vars" in form or hasattr(form, "vars"):
             vars = form.vars
         else:
             # Coming from s3_register callback
@@ -2447,6 +2447,7 @@ def hrm_rheader(r, tabs=[]):
                     (T("Experience"), "experience"),
                     (T("Teams"), "group_membership"),
                     (T("Assets"), "asset"),
+                    (T("User Roles"), "roles"),
                    ]
         rheader_tabs = s3_rheader_tabs(r, tabs)
         rheader = DIV(A(s3_avatar_represent(record.id,
