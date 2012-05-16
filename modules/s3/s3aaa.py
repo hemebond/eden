@@ -6366,7 +6366,7 @@ class S3RoleMatrix(S3Method):
 
         # Check that the orgadmin has permission to edit roles
         # for this entity
-        if entity.id not in realm:
+        if realm and entity.id not in realm:
             current.auth.permission.fail()
 
         # The form for selecting a user
@@ -6609,7 +6609,7 @@ class S3RoleMatrix(S3Method):
             before = user_roles.values()
             after = [role_uid for group, role_uid in role_form.vars.items() if group[:5] == 'role_']
 
-            self.update_roles(user, entity, before, after)
+            self.update_roles(self.request.post_vars.user, self.request.post_vars.entity, before, after)
             current.session.confirmation = T("Roles updated")
             return True
         else:
@@ -6618,7 +6618,7 @@ class S3RoleMatrix(S3Method):
             self.output['role_form'] = role_form
             return False
 
-    def update_roles(self, user, entity, before, after):
+    def update_roles(self, user_id, entity_id, before, after):
         """
         Update the users roles on entity based on the selected roles
         in before and after
@@ -6627,11 +6627,11 @@ class S3RoleMatrix(S3Method):
             # If role_uid is not in after,
             # the access level has changed.
             if role_uid not in after:
-                current.auth.s3_retract_role(user.id, role_uid, entity.id)
+                current.auth.s3_retract_role(user_id, role_uid, entity_id)
 
         for role_uid in after:
             # If the role_uid is not in before,
             # the access level has changed
             if role_uid != 'None' and role_uid not in before:
-                current.auth.s3_assign_role(user.id, role_uid, entity.id)
+                current.auth.s3_assign_role(user_id, role_uid, entity_id)
 # END =========================================================================
