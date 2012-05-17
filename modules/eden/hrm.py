@@ -2122,13 +2122,10 @@ S3FilterFieldChange({
         data = table(table.id == id)
 
         if delete:
-            # I really wish this weren't neccesary, but I really need to get that person_id!
-            def reduction(a, b):
-                a.update({b["f"]: b["k"]})
-                return a
-            data = reduce(reduction, eval(data.deleted_fk), {})
-
-        person_id = data["person_id"]
+            deleted_fks = json.loads(data.deleted_fk)
+            person_id = deleted_fks["person_id"]
+        else:
+            person_id = data["person_id"]
 
         ctable = s3db.hrm_certification
         cctable = s3db.hrm_course_certificate
