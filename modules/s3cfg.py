@@ -187,7 +187,7 @@ class S3Config(Storage):
     def get_aaa_access_levels(self):
         T = current.T
         return self.aaa.get("access_levels", OrderedDict([
-            ('read', 'Reader'),
+            ('reader', 'Reader'),
             ('data_entry', 'Data Entry'),
             ('editor', 'Editor'),
             ('super', 'Super Editor')

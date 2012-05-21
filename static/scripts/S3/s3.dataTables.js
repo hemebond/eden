@@ -180,6 +180,7 @@ $(document).ready(function() {
     } else {
         var sortFixed = null;
     }
+
     if (S3.dataTables.sDom) {
         var sDom = S3.dataTables.sDom;
     } else {
@@ -441,9 +442,10 @@ $(document).ready(function() {
             }
         },
         "aaSortingFixed": sortFixed,
-        "aoColumnDefs": [{ "bVisible": false, "aTargets": [ S3.dataTables.group ] }]
+        "aoColumnDefs": [
+                         { "bVisible": false, "aTargets": [ S3.dataTables.group ] }
+                     ]
     });
-
 
 	if (S3.dataTables.hideList) {
 		for (i=0; i<S3.dataTables.hideList.length; i++){
