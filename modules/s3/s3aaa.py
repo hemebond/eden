@@ -57,6 +57,7 @@ from gluon.validators import IS_SLUG
 from gluon.contrib import simplejson as json
 from gluon.contrib.simplejson.ordered_dict import OrderedDict
 from gluon.contrib.login_methods.oauth20_account import OAuthAccount
+from gluon.sqlhtml import OptionsWidget
 
 from s3method import S3Method
 from s3validators import IS_ACL
@@ -6353,13 +6354,15 @@ class S3RoleMatrix(S3Method):
         realm = self.get_realm()
 
         # Get the users for this admin is allowed to edit roles
-        users = s3db.pr_realm_users(realm)
+        realm_users = s3db.pr_realm_users(realm)
+        all_users = s3db.pr_realm_users(None)
+        other_users = dict([(k, v) for (k, v) in all_users.items() if k not in realm_users])
 
         # This is the user account the roles will apply to
         user = Storage()
         user.id = request.get_vars.get("user", None)
         if user.id:
-            user.name = users.get(int(user.id), None)
+            user.name = all_users.get(int(user.id), None)
 
         # We're access this method from an entity (org, office or group)
         # so we already have a record
@@ -6378,8 +6381,14 @@ class S3RoleMatrix(S3Method):
         # The form for selecting a user
         self.output["form"] = SQLFORM.factory(Field("user",
                                                     T("User"),
-                                                    requires=IS_IN_SET(users),
-                                                    default=user.id),
+                                                    requires=IS_IN_SET(all_users),
+                                                    default=user.id,
+                                                    widget = lambda field, value:
+                                                        GroupedOptionsWidget.widget(field,
+                                                            value,
+                                                            options=[("", ""),
+                                                                     ("Realm", realm_users),
+                                                                     ("Others", other_users)])),
                                               _method="GET",
                                               submit_button="Select")
 
@@ -6448,6 +6457,8 @@ class S3RoleMatrix(S3Method):
         """
             This returns an OrderedDict of modules with their uid as the key,
             e.g., {hrm: "Human Resources",}
+
+            @returns: dict
         """
         return current.deployment_settings.get_aaa_role_modules()
 
@@ -6456,6 +6467,8 @@ class S3RoleMatrix(S3Method):
         """
             This returns an OrderedDict of access levels and their uid as
             the key, e.g., {reader: "Reader",}
+
+            @returns: dict
         """
         return current.deployment_settings.get_aaa_access_levels()
 
@@ -6469,6 +6482,8 @@ class S3RoleMatrix(S3Method):
                                 roles, e.g., ["project", "asset",]
             @param access_level_uids: A list of string. These are suffixes
                                       for roles, e.g., ["reader", "editor",]
+
+            @returns: 2d array of role_uids
         """
         options = []
         # for each module
@@ -6498,6 +6513,8 @@ class S3RoleMatrix(S3Method):
             @type module_uids: list
             @param module_uids: A list of strings that are prefixes for roles
                                 e.g., ["proj", "asset"]
+
+            @returns: dict
         """
 
         # Get current memberships
@@ -6535,11 +6552,20 @@ class S3RoleMatrix(S3Method):
             @param user: A Storage() object with "id" and "name" properties
             @type entity: Storage()
             @param entity: A Storage() object with "id" (pe_id) and
-                        "name" (string) properties
+                           "name" (string) properties
+            @param row_labels: list of strings to use as row headers in the
+                               matrix grid
+            @param col_labels: list of string to use as column headers in the
+                               matrix grid
+            @param options: 2d array of role_uids
+            @param groups: list of strings used to group the radio button
+                           form elements
+
+            @returns: SQLFORM
         """
         fields = []
         for idx, option_list in enumerate(options):
-            name = "%s_%s" % ("role", groups[idx])
+            name = "role_%s" % groups[idx]
             field = self.role_field_factory(name, row_labels[idx], option_list)
             fields.append(field)
 
@@ -6560,6 +6586,8 @@ class S3RoleMatrix(S3Method):
             @type label: String
             @param label: The label for this row in the matrix,
                           e.g., "Projects"
+
+            @returns: Field
         """
         return Field(
             name,
@@ -6573,6 +6601,11 @@ class S3RoleMatrix(S3Method):
     def role_matrix_row(field, value, **attributes):
         """
             This is a custom widget that just returns a list of INPUT objects
+
+            @param field: the field needing the widget
+            @param value: value
+
+            @returns: list if INPUT objects
         """
         table = SQLFORM.widgets.radio.widget(field, value,
                                              _class="test", **attributes)
@@ -6586,6 +6619,8 @@ class S3RoleMatrix(S3Method):
             @param user: A Storage() object with "id" and "name" properties
             @param entity: A Storage() object with "id" (pe_id) and
                         "name" (string) properties
+
+            @returns: dict for view
         """
         if user.name and entity.name:
             if self.role_form_is_valid(user, entity):
@@ -6606,6 +6641,8 @@ class S3RoleMatrix(S3Method):
             @param user: A Storage() object with "id" and "name" properties
             @param entity: A Storage() object with "id" (pe_id) and
                         "name" (string) properties
+
+            @returns: boolean
         """
         T = current.T
 
@@ -6656,6 +6693,11 @@ class S3RoleMatrix(S3Method):
         """
             Update the users roles on entity based on the selected roles
             in before and after
+
+            @param user_id: id (pk) of the user account to modify
+            @param entity_id: id of the pentity to modify roles for
+            @param before: list of role_uids (current values for the user)
+            @param after: list of role_uids (new values from the admin)
         """
         for role_uid in before:
             # If role_uid is not in after,
@@ -6668,5 +6710,36 @@ class S3RoleMatrix(S3Method):
             # the access level has changed
             if role_uid != "None" and role_uid not in before:
                 current.auth.s3_assign_role(user_id, role_uid, entity_id)
+
+class GroupedOptionsWidget(OptionsWidget):
+    """
+        A custom Field widget to create a SELECT element with grouped options.
+    """
+    @classmethod
+    def widget(cls, field, value, options, **attributes):
+        """
+            Generates a SELECT tag, with OPTIONs grouped by OPTGROUPs
+
+            @param field: the field needing the widget
+            @param value: value
+            @param options: list
+            @param options: a list of tuples, each either (label, value) or (label, {options})
+            @param attributes: any other attributes to be applied
+
+            @returns: SELECT object
+        """
+        default = dict(value=value)
+        attr = cls._attributes(field, default,
+                               **attributes)
+        select_items = []
+
+        for option in options:
+            if isinstance(option[1], dict):
+                opts = [OPTION(v, _value=k) for k, v in option[1].items()]
+                select_items.append(OPTGROUP(*opts, _label=option[0]))
+            else:
+                select_items.append(OPTION(option[1], _label=option[0]))
+
+        return SELECT(select_items, **attr)
 
 # END =========================================================================
