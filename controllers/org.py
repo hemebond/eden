@@ -79,10 +79,6 @@ def facility_type():
 def organisation():
     """ RESTful CRUD controller """
 
-    # Custom Methods
-    s3mgr.model.set_method(module, resourcename, method="users",
-               action=s3base.S3RoleMatrix())
-
     # Defined in the Model for use from Multiple Controllers for unified menus
     return s3db.org_organisation_controller()
 
@@ -110,10 +106,6 @@ def organisation_list_represent(l):
 # =============================================================================
 def office():
     """ RESTful CRUD controller """
-
-    # Custom Methods
-    s3mgr.model.set_method(module, resourcename, method="users",
-               action=s3base.S3RoleMatrix())
 
     # Defined in the Model for use from Multiple Controllers for unified menus
     return s3db.org_office_controller()

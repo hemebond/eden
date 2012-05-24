@@ -1,7 +1,7 @@
 {{extend "layout.html"}}
 
 {{try:}}
-	{{=H2(title)}}
+	{{=H2(T("User Roles"))}}
 {{except:}}
 	{{pass}}
 
@@ -14,48 +14,67 @@
 <div>
 {{pass}}
 
-{{if globals().get('form', False):}}
-	<div class="form-container">
-		{{=form}}
-	</div>
+<style type="text/css">
+	#component table {
+		background-color: white;
+	}
+	#component th,
+	#component td {
+		border:1px solid #ccc;
+		padding:0.5em;
+		white-space: nowrap;
+	}
+
+	#component th {
+		font-weight:bold;
+		background-color: #E2E4FF;
+	}
+
+	#component caption {
+		font-weight: bold;
+		white-space: nowrap;
+		padding: 0.5em 0;
+	}
+</style>
+
+<!-- one table containing all users with assigned roles -->
+{{if globals().get("form", False):}}
+	{{=form.custom.begin}}
 {{pass}}
-
-{{if globals().get('role_form', False):}}
-	<div class="form-container">
-		{{lbl=role_form.custom.label}}
-		{{wid=role_form.custom.widget}}
-		{{acllen=len(role_form.custom.matrix_access_level_labels)}}
-
-		<h3>{{=T('Roles for')}} {{=user.name}}</h3>
-		{{=role_form.custom.begin}}
-			<table class="">
-				<thead>
+<table>
+	<caption>Assigned Roles</caption>
+	<thead>
+		<tr>
+			<th>{{=target_object_label}}</th>
+			<th>Module</th>
+			<th>Access Level</th>
+		</tr>
+	</thead>
+	{{if globals().get("assigned_roles", False) and not globals().get("target_object", False):}}
+		{{for object_id, object_roles in assigned_roles.items():}}
+			<tbody>
+				{{first_row = True}}
+				{{for role in object_roles:}}
 					<tr>
-						<th></th>
-						{{for label in role_form.custom.matrix_access_level_labels:}}
-							<th span="col">{{=label}}</th>
+						{{if first_row:}}
+							{{first_row = False}}
+							<td rowspan="{{=len(object_roles)}}"><a href="?edit={{=object_id}}" title="Edit roles for {{=names[object_id]}}">{{=names[object_id]}}</a></td>
 						{{pass}}
+						<td>{{=roles[role]["module"]["label"]}}</td>
+						<td>{{=roles[role]["acl"]["label"]}}</td>
 					</tr>
-				</thead>
-				<tbody>
-					{{for field in role_form.fields:}}
-						{{if wid[field]:}}
-							<tr>
-								<th span="row">{{=lbl[field]}}</th>
+				{{pass}}
+			</tbody>
+		{{pass}}
+	{{pass}}
+	<!-- regular table form for assigning roles to a user -->
+	{{if globals().get("form", False):}}
+		<tbody>
+			{{include "admin/_role_form.html"}}
+		</tbody>
+	{{pass}}
+</table>
 
-								{{for widget in wid[field]:}}
-									<td>{{=widget}}</td>
-								{{pass}}
-							</tr>
-						{{pass}}
-					{{pass}}
-					<tr>
-						<td></td>
-						<td colspan="{{=acllen}}">{{=INPUT(_type='submit', _value=T('Update Roles'))}}</td>
-					</tr>
-				</tbody>
-			</table>
-		{{=role_form.custom.end}}
-	</div>
+{{if globals().get("form", False):}}
+	{{=form.custom.end}}
 {{pass}}
-</div>
