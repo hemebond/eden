@@ -914,6 +914,7 @@ class S3OptionsMenu:
                     ),
                     M("Warehouse Stock", c="inv", f="inv_item")(
                         M("Search Warehouse Stock", f="inv_item", m="search"),
+                        M("Search Shipped Items", f="track_item", m="search"),
                         M("Adjust Stock Levels", f="adj"),
                         M("Report", f="inv_item", m="report",
                           vars=Storage(rows="item_id",
@@ -998,6 +999,62 @@ class S3OptionsMenu:
                     ),
                     M("Ushahidi " + T("Import"), f="ireport", restrict=[ADMIN],
                       args="ushahidi")
+                )
+
+    # -------------------------------------------------------------------------
+    def security(self):
+        """ Security Management System """
+
+        T = current.T
+
+        session = current.session
+        ADMIN = session.s3.system_roles.ADMIN
+
+        return M(c="security")(
+                    M("Incident Reports", c="irs", f="ireport")(
+                        M("New", m="create"),
+                        M("List All"),
+                        M("Open Incidents", vars={"open":1}),
+                        M("Timeline", args="timeline"),
+                        M("Import", m="import"),
+                        M("Search", m="search"),
+                        M("Report", m="report",
+                          vars=dict(rows="L1",
+                                    cols="category",
+                                    fact="datetime",
+                                    aggregate="count"))
+                    ),
+                    M("Incident Categories", c="irs", f="icategory", restrict=[ADMIN])(
+                        M("New", m="create"),
+                        M("List All"),
+                    ),
+                    M("Facilities", c="org", f="facility")(
+                        M("New", m="create"),
+                        M("List All"),
+                    ),
+                    M("Facility Types", c="org", f="facility_type", restrict=[ADMIN])(
+                        M("New", m="create"),
+                        M("List All"),
+                    ),
+                    M("Zones", f="zone")(
+                        M("New", m="create"),
+                        M("List All"),
+                    ),
+                    M("Zone Types", f="zone_type", restrict=[ADMIN])(
+                        M("New", m="create"),
+                        M("List All"),
+                    ),
+                    M("Personnel", f="staff")(
+                        M("New", m="create"),
+                        M("List All Security-related Staff"),
+                        M("List All Essential Staff", f="essential", m="search"),
+                    ),
+                    M("Security Staff Types", f="staff_type", restrict=[ADMIN])(
+                        M("New", m="create"),
+                        M("List All"),
+                    ),
+                    #M("Ushahidi " + T("Import"), c="irs", f="ireport", restrict=[ADMIN],
+                    #  args="ushahidi")
                 )
 
     # -------------------------------------------------------------------------

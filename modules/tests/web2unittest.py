@@ -19,7 +19,7 @@ class Web2UnitTest(unittest.TestCase):
         self.browser = self.config.browser
         self.app = current.request.application
         self.url = self.config.url
-        self.user = "normal"
+        self.user = "admin"
 
 class SeleniumUnitTest(Web2UnitTest):
     def login(self, account=None, nexturl=None):
@@ -31,9 +31,9 @@ class SeleniumUnitTest(Web2UnitTest):
 
     def getRows (self, table, data, dbcallback):
         """
-            get a copy of all the records that match the data passed in
-            this can be modified by the callback function
-        """
+get a copy of all the records that match the data passed in
+this can be modified by the callback function
+"""
         query = ((table.deleted == "F"))
         for details in data:
             query = query & ((table[details[0]] == details[1]))
@@ -52,14 +52,13 @@ class SeleniumUnitTest(Web2UnitTest):
               ):
         """ Generic method to create a record from the data passed in
 
-            table      The table where the record belongs
-            data       The data that is to be inserted
-            success    The expectation that this create will succeed
-            dbcallback Used by getRows to return extra data from 
-                       the database before & after the create
-            
-            This will return a dictionary of rows before and after the create
-        """
+table The table where the record belongs
+data The data that is to be inserted
+success The expectation that this create will succeed
+dbcallback Used by getRows to return extra data from
+the database before & after the create
+This will return a dictionary of rows before and after the create
+"""
         browser = self.browser
         result = {}
         id_data = []
@@ -67,7 +66,7 @@ class SeleniumUnitTest(Web2UnitTest):
         for details in data:
             el_id = "%s_%s" % (tablename, details[0])
             el_value = details[1]
-            try:
+            if len(details) == 3:
                 el_type = details[2]
                 if el_type == "option":
                     el = browser.find_element_by_id(el_id)
@@ -80,24 +79,45 @@ class SeleniumUnitTest(Web2UnitTest):
                     raw_value = self.w_autocomplete(el_value,
                                                     el_id,
                                                    )
-            except:
+                elif el_type == "inv_widget":
+                    raw_value = self.w_inv_item_select(el_value,
+                                                       tablename,
+                                                       details[0],
+                                                      )
+                elif el_type == "supply_widget":
+                    raw_value = self.w_supply_select(el_value,
+                                                     tablename,
+                                                     details[0],
+                                                    )
+                elif el_type == "gis_location":
+                    self.w_gis_location(el_value,
+                                        details[0],
+                                       )
+                    raw_value = None
+            else:
                 el = browser.find_element_by_id(el_id)
                 el.send_keys(el_value)
                 raw_value = el_value
-            id_data.append([details[0], raw_value])
+            if raw_value:
+                id_data.append([details[0], raw_value])
         result["before"] = self.getRows(table, id_data, dbcallback)
         browser.find_element_by_css_selector("input[type=\"submit\"]").click()
         confirm = True
         try:
             elem = browser.find_element_by_xpath("//div[@class='confirmation']")
+            s3_debug(elem.text)
         except NoSuchElementException:
             confirm = False
         self.assertTrue (confirm == success, "Unexpected create success of %s" % confirm)
         result["after"] = self.getRows(table, id_data, dbcallback)
+        successMsg = "Record added to database"
+        failMsg = "Record not added to database"
         if success:
-            self.assertTrue ((len(result["after"]) - len(result["before"])) == 1, "Record not added to database")
+            self.assertTrue ((len(result["after"]) - len(result["before"])) == 1, failMsg)
+            s3_debug(successMsg)
         else:
-            self.assertTrue ((len(result["after"]) == len(result["before"])), "Record added to database")
+            self.assertTrue ((len(result["after"]) == len(result["before"])), successMsg)
+            s3_debug(failMsg)
         return result
 
     def dt_filter(self,
@@ -146,3 +166,26 @@ class SeleniumUnitTest(Web2UnitTest):
                        quiet = True,
                       ):
         return w_autocomplete(search, autocomplete, needle, quiet)
+
+    def w_inv_item_select(self,
+                          item_repr,
+                          tablename,
+                          field,
+                          quiet = True,
+                         ):
+        return w_inv_item_select(item_repr, tablename, field, quiet)
+
+    def w_gis_location(self,
+                      item_repr,
+                      field,
+                      quiet = True,
+                     ):
+        return w_gis_location(item_repr, field, quiet)
+    
+    def w_supply_select(self,
+                       item_repr,
+                       tablename,
+                       field,
+                       quiet = True,
+                      ):
+        return w_supply_select(item_repr, tablename, field, quiet)

@@ -189,7 +189,7 @@ class S3RequestModel(S3Model):
                                         label=T("Purpose")), # Donations: What will the Items be used for?; People: Task Details
                                   Field("date_required",
                                         "datetime",
-                                        label = T("Date Required"),
+                                        label = T("Date Needed BY"),
                                         requires = [IS_EMPTY_OR(
                                                     #IS_UTC_DATETIME_IN_RANGE(
                                                     IS_DATE_IN_RANGE(
@@ -301,6 +301,9 @@ class S3RequestModel(S3Model):
         if len(req_type_opts) == 1:
             k,v = req_type_opts.popitem()
             table.type.default = k
+            table.type.requires = k
+            table.type.writable = False
+            table.type.readable = False
 
         if not settings.get_req_use_req_number():
             table.req_ref.readable = False
