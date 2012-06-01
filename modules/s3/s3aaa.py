@@ -46,6 +46,7 @@ import uuid
 import urllib
 from urllib import urlencode
 import urllib2
+import math
 
 from gluon import *
 from gluon.storage import Storage, Messages
@@ -6267,12 +6268,6 @@ class EntityRoleManager(S3Method):
         # Dictionary of pentities this admin can manage
         self.realm = self.get_realm()
 
-        # dictionary {id: name, ...} of pentities
-        self.entities = current.s3db.pr_get_entities(types=["org_organisation",
-                                                            "org_office"])
-        # dictionary {id: name, ...} of user accounts
-        self.users = current.s3db.pr_realm_users(None)
-
         # The list of user accounts linked to pentities in this realm
         self.realm_users = current.s3db.pr_realm_users(self.realm)
 
@@ -6336,13 +6331,21 @@ class EntityRoleManager(S3Method):
                     ...
                 },
 
+                "paginated_list": [
+                    (
+                        "User One",
+                        "1"
+                    ),
+                    ...
+                ],
+
                 # The object (user/entity) we are assigning roles for
-                "target_object": {
+                "foreign_object": {
                     "id": "1",
                     "name": "User One"
                 }
                 or
-                "target_object": {
+                "foreign_object": {
                     "id": "70",
                     "name": "Organisation Seventy"
                 }
@@ -6360,9 +6363,10 @@ class EntityRoleManager(S3Method):
         # roles already assigned to a user or users
         self.assigned_roles = self.get_assigned_roles()
 
+        # the foreign object is the one selected in the role form
         # for a person this is the entity
         # for an entity (organisation or office) this is a user
-        self.target_object = self.get_target_object()
+        self.foreign_object = self.get_foreign_object()
 
         form = self.get_form()
 
@@ -6371,21 +6375,44 @@ class EntityRoleManager(S3Method):
         form.vars.update(self.get_form_vars())
 
         if form.accepts(request.post_vars, current.session):
-            before = self.assigned_roles[self.target_object["id"]] if self.target_object else []
-            after = ["%s_%s" % (mod_uid, acl_uid) for mod_uid, acl_uid in form.vars.items() if mod_uid in self.modules.keys() and acl_uid in self.acls.keys()]
+            before = self.assigned_roles[self.foreign_object["id"]] if self.foreign_object else []
+            after = ["%s_%s" % (mod_uid, acl_uid) for mod_uid, acl_uid
+                                                  in form.vars.items()
+                                                  if mod_uid in self.modules.keys()
+                                                  and acl_uid in self.acls.keys()]
 
-            user_id = self.user["id"] if self.user else form.vars.target_object
-            entity_id = self.entity["id"] if self.entity else form.vars.target_object
+            # either both values will have been specified or one will
+            # be supplied by the form (for roles on new objects)
+            user_id = self.user["id"] if self.user else form.vars.foreign_object
+            entity_id = self.entity["id"] if self.entity else form.vars.foreign_object
 
             self.update_roles(user_id, entity_id, before, after)
             current.session.confirmation = T("Roles updated")
             redirect(request.url(vars={}))
 
-        return {"roles": self.roles,
-                "assigned_roles": self.assigned_roles,
-                "target_object": self.target_object,
-                "form": form,
-                "title": T("Roles")}
+        context = {"roles": self.roles,
+                   "foreign_object": self.foreign_object,
+                   "form": form,
+                   "title": T("Roles")}
+
+        if not self.foreign_object:
+            # how many assigned roles to show per page
+            pagination_size = int(request.get_vars.get("page_size", 4))
+            # what page of assigned roles to view
+            pagination_offset = int(request.get_vars.get("page_offset", 0))
+            # the number of pages of assigned roles
+            pagination_pages = int(math.ceil(len(self.assigned_roles) / float(pagination_size)))
+            # the list of objects to show on this page
+            pagination_list = [(self.objects[id], id) for id in self.assigned_roles]
+            pagination_list = sorted(pagination_list)[pagination_offset * pagination_size:pagination_offset * pagination_size + pagination_size]
+
+            context.update({"assigned_roles": self.assigned_roles,
+                            "pagination_size": pagination_size,
+                            "pagination_offset": pagination_offset,
+                            "pagination_list": pagination_list,
+                            "pagination_pages": pagination_pages})
+
+        return context
 
     def get_realm(self):
         """
@@ -6481,7 +6508,7 @@ class EntityRoleManager(S3Method):
 
         rows = current.db(query).select(utable.id, gtable.uuid, mtable.pe_id)
 
-        assigned_roles = {}
+        assigned_roles = OrderedDict()
         for row in rows:
             object_id = row.auth_user.id if entity_id else row.auth_membership.pe_id
             role_uid = row.auth_group.uuid
@@ -6497,11 +6524,11 @@ class EntityRoleManager(S3Method):
     def get_form(self):
         """
             Contructs the role form
-            
+
             @return: SQLFORM
         """
         fields = self.get_form_fields()
-        form = SQLFORM.factory(*fields, table_name="roles", _id="role-form", _method="POST")
+        form = SQLFORM.factory(*fields, table_name="roles", _id="role-form", _action="", _method="POST")
         return form
 
     def get_form_fields(self):
@@ -6525,9 +6552,9 @@ class EntityRoleManager(S3Method):
         """
         form_vars = Storage()
 
-        if self.target_object:
-            if self.target_object["id"] in self.assigned_roles:
-                for role in self.assigned_roles[self.target_object["id"]]:
+        if self.foreign_object:
+            if self.foreign_object["id"] in self.assigned_roles:
+                for role in self.assigned_roles[self.foreign_object["id"]]:
                     mod_uid = self.roles[role]["module"]["uid"]
                     acl_uid = self.roles[role]["acl"]["uid"]
                     form_vars[mod_uid] = acl_uid
@@ -6558,15 +6585,21 @@ class EntityRoleManager(S3Method):
 
 
 class OrgRoleManager(EntityRoleManager):
+    def __init__(self, *args, **kwargs):
+        super(OrgRoleManager, self).__init__(*args, **kwargs)
+
+        # dictionary {id: name, ...} of user accounts
+        self.objects = current.s3db.pr_realm_users(None)
+
     def get_context_data(self, request, **kwargs):
         """
             Override to set the context from the perspective of an entity
-            
+
             @return: dictionary for view
         """
-        context = super(OrgRoleManager, self).get_context_data(request, **kwargs)
-        context["names"] = self.users
-        context["target_object_label"] = current.T("Users")
+        context = super(OrgRoleManager, self).get_context_data(request,
+                                                               **kwargs)
+        context["foreign_object_label"] = current.T("Users")
         return context
 
     def get_entity(self):
@@ -6590,13 +6623,13 @@ class OrgRoleManager(EntityRoleManager):
         """
         user = self.request.get_vars.get("edit", None)
         if user:
-            user = dict(id=int(user), name=self.users.get(int(user), None))
+            user = dict(id=int(user), name=self.objects.get(int(user), None))
         return user
 
-    def get_target_object(self):
+    def get_foreign_object(self):
         """
             We are on an entity so our target is a user account.
-            
+
             @return: dictionary with ID and username/email of user account
         """
         return self.user
@@ -6604,7 +6637,7 @@ class OrgRoleManager(EntityRoleManager):
     def get_assigned_roles(self):
         """
             Override to get assigned roles for this entity
-            
+
             @return: dictionary with user IDs as the keys.
         """
         return super(OrgRoleManager, self).get_assigned_roles(entity_id=self.entity["id"])
@@ -6622,15 +6655,15 @@ class OrgRoleManager(EntityRoleManager):
 
         if not self.user:
             realm_users = {k : v for k, v in self.realm_users.items() if k not in self.assigned_roles}
-            nonrealm_users = {k : v for k, v in self.users.items() if k not in self.assigned_roles and k not in self.realm_users}
+            nonrealm_users = {k : v for k, v in self.objects.items() if k not in self.assigned_roles and k not in self.realm_users}
 
             options = [("", ""),
                        (T("Realm"), realm_users),
                        (T("Others"), nonrealm_users)]
 
-            object_field = Field("target_object",
+            object_field = Field("foreign_object",
                                  T("User"),
-                                 requires=IS_IN_SET(self.users),
+                                 requires=IS_IN_SET(self.objects),
                                  widget=lambda field, value:
                                      GroupedOptionsWidget.widget(field,
                                                                  value,
@@ -6639,6 +6672,13 @@ class OrgRoleManager(EntityRoleManager):
         return fields
 
 class PersonRoleManager(EntityRoleManager):
+    def __init__(self, *args, **kwargs):
+        super(PersonRoleManager, self).__init__(*args, **kwargs)
+
+        # dictionary {id: name, ...} of pentities
+        self.objects = current.s3db.pr_get_entities(types=["org_organisation",
+                                                           "org_office"])
+
     def get_context_data(self, request, **kwargs):
         """
             Override to set the context from the perspective of a person
@@ -6646,8 +6686,7 @@ class PersonRoleManager(EntityRoleManager):
             @return: dictionary for view
         """
         context = super(PersonRoleManager, self).get_context_data(request, **kwargs)
-        context["names"] = self.entities
-        context["target_object_label"] = current.T("Organisations and Offices")
+        context["foreign_object_label"] = current.T("Organisations and Offices")
         return context
 
     def get_entity(self):
@@ -6659,7 +6698,7 @@ class PersonRoleManager(EntityRoleManager):
         """
         entity = self.request.get_vars.get("edit", None)
         if entity:
-            entity = dict(id=int(entity), name=self.entities.get(int(entity), None))
+            entity = dict(id=int(entity), name=self.objects.get(int(entity), None))
         return entity
 
     def get_user(self):
@@ -6684,7 +6723,7 @@ class PersonRoleManager(EntityRoleManager):
 
         return dict(id=record.id, name=record[username]) if record else None
 
-    def get_target_object(self):
+    def get_foreign_object(self):
         """
             We are on a user/person so we want to target an entity (org/office)
         """
@@ -6713,15 +6752,22 @@ class PersonRoleManager(EntityRoleManager):
 
             nice_name = current.s3db.table("pr_pentity").instance_type.represent
 
-            options = [(nice_name(entity_type), entities) for entity_type, entities in options.items()]
+            # filter out options that already have roles assigned
+            filtered_options = []
+            for entity_type, entities in options.items():
+                entities = {entity_id: entity_name for entity_id, entity_name
+                                                     in entities.items()
+                                                     if entity_id
+                                                     not in self.assigned_roles}
+                filtered_options.append((nice_name(entity_type), entities))
 
-            object_field = Field("target_object",
+            object_field = Field("foreign_object",
                                  current.T("Entity"),
-                                 requires=IS_IN_SET(self.entities),
+                                 requires=IS_IN_SET(self.objects),
                                  widget=lambda field, value:
                                      GroupedOptionsWidget.widget(field,
                                                                  value,
-                                                                 options=options))
+                                                                 options=filtered_options))
             fields.insert(0, object_field)
 
         return fields
