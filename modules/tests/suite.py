@@ -33,6 +33,9 @@ config.system_name = system_name
 config.timeout = 5 # seconds
 config.url = base_url
 
+base_dir = os.path.join(os.getcwd(), "applications", current.request.application)
+config.base_dir = base_dir
+
 browser = config.browser = webdriver.Firefox()
 browser.implicitly_wait(config.timeout)
 
@@ -51,7 +54,8 @@ if test:
     # Run specified Test after logging in
     # @ToDo: Each test should check whether it needs to login independently as they may wish to login using different credentials
     # Maybe this could be bypassed for a test run within the suite by passing it an argument
-    login(account="admin")
+    
+    #login(account="admin")
     print test
     suite = loadTests(globals()[test])
 
@@ -59,14 +63,11 @@ else:
     # Run all Tests
 
     # Create Organisation
-    suite = loadTests(org_create_organisation)
-
+    suite = loadTests(Org_Organisation)
     # Shortcut
     addTests = suite.addTests
-    
     # Create Office
     addTests(loadTests(org_create_office))
-
     # Setup Staff
     addTests(loadTests(hrm_setup_staff))
     # Setup New Volunteer
@@ -74,7 +75,9 @@ else:
     # Setup Training Course
     addTests(loadTests(hrm_setup_trainingcourse))
     # Setup Training Event
-    addTests(loadTests(hrm_setup_trainingevent))
+    #addTests(loadTests(hrm_setup_trainingevent))
+    # Inventory tests
+    addTests(loadTests(Logistics))
 
     # Assign Staff to Organisation
     #addTests(loadTests(hrm_assign_organisationstaff))

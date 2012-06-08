@@ -164,7 +164,7 @@ class S3Config(Storage):
         " Redirect the newly-registered user to their volunteer details page "
         return self.auth.get("registration_volunteer", False)
     def get_auth_always_notify_approver(self):
-        return self.auth.get("always_notify_approver", False)
+        return self.auth.get("always_notify_approver", True)
 
     # @ToDo: Deprecate
     def get_aaa_default_uacl(self):
@@ -212,7 +212,7 @@ class S3Config(Storage):
     def get_system_name(self):
         return self.base.get("system_name", current.T("Sahana Eden Humanitarian Management Platform"))
     def get_system_name_short(self):
-        return self.base.get("system_name_short", self.get_system_name())
+        return self.base.get("system_name_short", "Sahana Eden")
     def get_base_debug(self):
         return self.base.get("debug", False)
     def get_base_migrate(self):
@@ -361,7 +361,26 @@ class S3Config(Storage):
     def get_L10n_display_toolbar(self):
         return self.L10n.get("display_toolbar", True)
     def get_L10n_languages(self):
-        return self.L10n.get("languages", { "en":current.T("English") })
+        return self.L10n.get("languages",
+                             OrderedDict([
+                                ("ar", "العربية"),
+                                ("zh-cn", "中文 (简体)"),
+                                ("zh-tw", "中文 (繁體)"),
+                                ("en", "English"),
+                                ("fr", "Français"),
+                                ("de", "Deutsch"),
+                                ("el", "ελληνικά"),
+                                ("it", "Italiano"),
+                                ("ja", "日本語"),
+                                ("ko", "한국어"),
+                                ("pt", "Português"),
+                                ("pt-br", "Português (Brasil)"),
+                                ("ru", "русский"),
+                                ("es", "Español"),
+                                ("tl", "Tagalog"),
+                                ("ur", "اردو"),
+                                ("vi", "Tiếng Việt"),
+                            ]))
     def get_L10n_religions(self):
         """
             Religions used in Person Registry
@@ -603,6 +622,12 @@ class S3Config(Storage):
         """
         return self.hrm.get("email_required", True)
 
+    def get_hrm_deletable(self):
+        """
+            If set to True then HRM records are deletable rather than just being able to be marked as obsolete
+        """
+        return self.hrm.get("deletable", False)
+
     def get_hrm_show_staff(self):
         """
             If set to True then HRM module exposes the Staff resource
@@ -623,6 +648,15 @@ class S3Config(Storage):
             - all skills use the same skill_type & hence the same set of competency levels
         """
         return self.hrm.get("skill_types", False)
+
+    def get_hrm_experience(self):
+        """
+            Which table to use for showing the experience of HRs
+            - currently supported options are:
+                * experience (default)
+                * programme (used by IFRC)
+        """
+        return self.hrm.get("experience", "experience")
 
     # -------------------------------------------------------------------------
     # Project Tracking

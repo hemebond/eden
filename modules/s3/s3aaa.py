@@ -35,8 +35,8 @@ __all__ = ["AuthS3",
            "S3RoleManager",
            "FaceBookAccount",
            "GooglePlusAccount",
-           "OrgRoleManager",
-           "PersonRoleManager"
+           "S3OrgRoleManager",
+           "S3PersonRoleManager"
           ]
 
 import datetime
@@ -6226,7 +6226,7 @@ class GooglePlusAccount(OAuthAccount):
             return None
 
 # =============================================================================
-class GroupedOptionsWidget(OptionsWidget):
+class S3GroupedOptionsWidget(OptionsWidget):
     """
         A custom Field widget to create a SELECT element with grouped options.
     """
@@ -6244,23 +6244,28 @@ class GroupedOptionsWidget(OptionsWidget):
             @returns: SELECT object
         """
         default = dict(value=value)
-        attr = cls._attributes(field, default,
-                               **attributes)
+        attr = cls._attributes(field, default, **attributes)
         select_items = []
 
         for option in options:
             if isinstance(option[1], dict):
-                opts = [OPTION(v, _value=k) for k, v in option[1].items()]
+                items = [(v, k) for k, v in option[1].items()]
+                if not items:
+                    continue
+                items.sort()
+                opts = [OPTION(v, _value=k) for v, k in items]
                 select_items.append(OPTGROUP(*opts, _label=option[0]))
             else:
                 select_items.append(OPTION(option[1], _label=option[0]))
 
         return SELECT(select_items, **attr)
 
+# =============================================================================
+class S3EntityRoleManager(S3Method):
 
-class EntityRoleManager(S3Method):
     def __init__(self, *args, **kwargs):
-        super(EntityRoleManager, self).__init__(*args, **kwargs)
+
+        super(S3EntityRoleManager, self).__init__(*args, **kwargs)
 
         # Set the default view
         current.response.view = "admin/manage_roles.html"
@@ -6292,20 +6297,24 @@ class EntityRoleManager(S3Method):
                     }
                 }
 
-    def apply_method(self, request, **kwargs):
-        if self.method == "roles" and request.name in ("organisation", "office", "person"):
-            context = self.get_context_data(request, **kwargs)
+    # -------------------------------------------------------------------------
+    def apply_method(self, r, **attr):
+        """
+            @todo: docstring?
+        """
+
+        if self.method == "roles" and \
+           r.name in ("organisation", "office", "person"):
+            context = self.get_context_data(r, **attr)
         else:
-            request.error(405, current.manager.ERROR.BAD_METHOD)
-
-        #@todo: remove this if not required - James
-        if request.http == "GET" and self.method not in ("create", "update", "delete"):
-            current.session.s3.cancel = request.url()
-
+            r.error(405, current.manager.ERROR.BAD_METHOD)
         return context
 
-    def get_context_data(self, request, **kwargs):
+    # -------------------------------------------------------------------------
+    def get_context_data(self, r, **attr):
         """
+            @todo: description?
+
             @return: dictionary for the view
 
             {
@@ -6352,7 +6361,6 @@ class EntityRoleManager(S3Method):
             }
         """
         T = current.T
-        self.request = request
 
         # organisation or office entity
         self.entity = self.get_entity()
@@ -6374,7 +6382,7 @@ class EntityRoleManager(S3Method):
         # for the form
         form.vars.update(self.get_form_vars())
 
-        if form.accepts(request.post_vars, current.session):
+        if form.accepts(r.post_vars, current.session):
             before = self.assigned_roles[self.foreign_object["id"]] if self.foreign_object else []
             after = ["%s_%s" % (mod_uid, acl_uid) for mod_uid, acl_uid
                                                   in form.vars.items()
@@ -6388,7 +6396,7 @@ class EntityRoleManager(S3Method):
 
             self.update_roles(user_id, entity_id, before, after)
             current.session.confirmation = T("Roles updated")
-            redirect(request.url(vars={}))
+            redirect(r.url(vars={}))
 
         context = {"roles": self.roles,
                    "foreign_object": self.foreign_object,
@@ -6397,9 +6405,9 @@ class EntityRoleManager(S3Method):
 
         if not self.foreign_object:
             # how many assigned roles to show per page
-            pagination_size = int(request.get_vars.get("page_size", 4))
+            pagination_size = int(r.get_vars.get("page_size", 4))
             # what page of assigned roles to view
-            pagination_offset = int(request.get_vars.get("page_offset", 0))
+            pagination_offset = int(r.get_vars.get("page_offset", 0))
             # the number of pages of assigned roles
             pagination_pages = int(math.ceil(len(self.assigned_roles) / float(pagination_size)))
             # the list of objects to show on this page
@@ -6414,20 +6422,25 @@ class EntityRoleManager(S3Method):
 
         return context
 
+    # -------------------------------------------------------------------------
     def get_realm(self):
         """
             Returns the realm (list of pe_ids) that this user can manage
             or raises a permission error if the user is not logged in
+
+            @todo: avoid multiple lookups in current.auth
         """
-        system_roles = current.auth.get_system_roles()
+        auth = current.auth
+
+        system_roles = auth.get_system_roles()
         ORG_ADMIN = system_roles.ORG_ADMIN
         ADMIN = system_roles.ADMIN
 
-        if current.auth.user:
-            realms = current.auth.user.realms
+        if auth.user:
+            realms = auth.user.realms
         else:
             # User is not logged in
-            current.auth.permission.fail()
+            auth.permission.fail()
 
         # Get the realm from the current realms
         if ADMIN in realms:
@@ -6437,8 +6450,9 @@ class EntityRoleManager(S3Method):
         else:
             # raise an error here - user is not permitted
             # to access the role matrix
-            current.auth.permission.fail()
+            auth.permission.fail()
 
+    # -------------------------------------------------------------------------
     def get_modules(self):
         """
             This returns an OrderedDict of modules with their uid as the key,
@@ -6448,6 +6462,7 @@ class EntityRoleManager(S3Method):
         """
         return current.deployment_settings.get_aaa_role_modules()
 
+    # -------------------------------------------------------------------------
     def get_access_levels(self):
         """
             This returns an OrderedDict of access levels and their uid as
@@ -6457,6 +6472,7 @@ class EntityRoleManager(S3Method):
         """
         return current.deployment_settings.get_aaa_access_levels()
 
+    # -------------------------------------------------------------------------
     def get_assigned_roles(self, entity_id=None, user_id=None):
         """
             If an entity ID is provided, the dict will be the users
@@ -6500,27 +6516,33 @@ class EntityRoleManager(S3Method):
                 (utable.deleted != True) & \
                 (utable.id == mtable.user_id)
 
+        if user_id:
+            field = mtable.pe_id
+            query &= (mtable.user_id == user_id) & \
+                     (mtable.pe_id != None)
+
         if entity_id:
+            field = utable.id
             query &= (mtable.pe_id == entity_id)
 
-        if user_id:
-            query &= (mtable.user_id == user_id) & (mtable.pe_id != None)
-
-        rows = current.db(query).select(utable.id, gtable.uuid, mtable.pe_id)
+        rows = current.db(query).select(utable.id,
+                                        gtable.uuid,
+                                        mtable.pe_id)
 
         assigned_roles = OrderedDict()
+        roles = self.roles
         for row in rows:
-            object_id = row.auth_user.id if entity_id else row.auth_membership.pe_id
-            role_uid = row.auth_group.uuid
+            object_id = row[field]
+            role_uid = row[gtable.uuid]
 
-            if role_uid in self.roles:
+            if role_uid in roles:
                 if object_id not in assigned_roles:
                     assigned_roles[object_id] = []
-
                 assigned_roles[object_id].append(role_uid)
 
         return assigned_roles
 
+    # -------------------------------------------------------------------------
     def get_form(self):
         """
             Contructs the role form
@@ -6528,21 +6550,31 @@ class EntityRoleManager(S3Method):
             @return: SQLFORM
         """
         fields = self.get_form_fields()
-        form = SQLFORM.factory(*fields, table_name="roles", _id="role-form", _action="", _method="POST")
+        form = SQLFORM.factory(*fields,
+                               table_name="roles",
+                               _id="role-form",
+                               _action="",
+                               _method="POST")
         return form
 
+    # -------------------------------------------------------------------------
     def get_form_fields(self):
         """
+            @todo: description?
+
             @return: list of Fields
         """
         fields = []
+        requires = IS_NULL_OR(IS_IN_SET(self.acls.keys(),
+                                        labels=self.acls.values()))
         for module_uid, module_label in self.modules.items():
             field = Field(module_uid,
                           label=module_label,
-                          requires=IS_NULL_OR(IS_IN_SET(self.acls.keys(), labels=self.acls.values())))
+                          requires=requires)
             fields.append(field)
         return fields
 
+    # -------------------------------------------------------------------------
     def get_form_vars(self):
         """
             Get the roles currently assigned for a user/entity and put it
@@ -6552,15 +6584,17 @@ class EntityRoleManager(S3Method):
         """
         form_vars = Storage()
 
-        if self.foreign_object:
-            if self.foreign_object["id"] in self.assigned_roles:
-                for role in self.assigned_roles[self.foreign_object["id"]]:
-                    mod_uid = self.roles[role]["module"]["uid"]
-                    acl_uid = self.roles[role]["acl"]["uid"]
-                    form_vars[mod_uid] = acl_uid
+        fo = self.foreign_object
+        roles = self.roles
+        if fo and fo["id"] in self.assigned_roles:
+            for role in self.assigned_roles[fo["id"]]:
+                mod_uid = roles[role]["module"]["uid"]
+                acl_uid = roles[role]["acl"]["uid"]
+                form_vars[mod_uid] = acl_uid
 
         return form_vars
 
+    # -------------------------------------------------------------------------
     def update_roles(self, user_id, entity_id, before, after):
         """
             Update the users roles on entity based on the selected roles
@@ -6571,37 +6605,47 @@ class EntityRoleManager(S3Method):
             @param before: list of role_uids (current values for the user)
             @param after: list of role_uids (new values from the admin)
         """
+        auth = current.auth
+        assign_role = auth.s3_assign_role
+        retract_role = auth.s3_retract_role
+
         for role_uid in before:
             # If role_uid is not in after,
             # the access level has changed.
             if role_uid not in after:
-                current.auth.s3_retract_role(user_id, role_uid, entity_id)
+                retract_role(user_id, role_uid, entity_id)
 
         for role_uid in after:
             # If the role_uid is not in before,
             # the access level has changed
             if role_uid != "None" and role_uid not in before:
-                current.auth.s3_assign_role(user_id, role_uid, entity_id)
+                assign_role(user_id, role_uid, entity_id)
 
+# =============================================================================
+class S3OrgRoleManager(S3EntityRoleManager):
 
-class OrgRoleManager(EntityRoleManager):
     def __init__(self, *args, **kwargs):
-        super(OrgRoleManager, self).__init__(*args, **kwargs)
+        """
+            @todo: docstring?
+        """
+
+        super(S3OrgRoleManager, self).__init__(*args, **kwargs)
 
         # dictionary {id: name, ...} of user accounts
         self.objects = current.s3db.pr_realm_users(None)
 
-    def get_context_data(self, request, **kwargs):
+    # -------------------------------------------------------------------------
+    def get_context_data(self, r, **attr):
         """
             Override to set the context from the perspective of an entity
 
             @return: dictionary for view
         """
-        context = super(OrgRoleManager, self).get_context_data(request,
-                                                               **kwargs)
+        context = super(S3OrgRoleManager, self).get_context_data(r, **attr)
         context["foreign_object_label"] = current.T("Users")
         return context
 
+    # -------------------------------------------------------------------------
     def get_entity(self):
         """
             We are on an entity (org/office) so we can fetch the entity
@@ -6614,6 +6658,7 @@ class OrgRoleManager(EntityRoleManager):
                                                       types=["org_organisation", "org_office"])[entity["id"]]
         return entity
 
+    # -------------------------------------------------------------------------
     def get_user(self):
         """
             The edit parameter
@@ -6626,6 +6671,7 @@ class OrgRoleManager(EntityRoleManager):
             user = dict(id=int(user), name=self.objects.get(int(user), None))
         return user
 
+    # -------------------------------------------------------------------------
     def get_foreign_object(self):
         """
             We are on an entity so our target is a user account.
@@ -6634,14 +6680,17 @@ class OrgRoleManager(EntityRoleManager):
         """
         return self.user
 
+    # -------------------------------------------------------------------------
     def get_assigned_roles(self):
         """
             Override to get assigned roles for this entity
 
             @return: dictionary with user IDs as the keys.
         """
-        return super(OrgRoleManager, self).get_assigned_roles(entity_id=self.entity["id"])
+        assigned_roles = super(S3OrgRoleManager, self).get_assigned_roles
+        return assigned_roles(entity_id=self.entity["id"])
 
+    # -------------------------------------------------------------------------
     def get_form_fields(self):
         """
             Override the standard method so we can add the user-selection
@@ -6651,44 +6700,55 @@ class OrgRoleManager(EntityRoleManager):
         """
         T = current.T
 
-        fields = super(OrgRoleManager, self).get_form_fields()
+        fields = super(S3OrgRoleManager, self).get_form_fields()
 
         if not self.user:
-            realm_users = {k : v for k, v in self.realm_users.items() if k not in self.assigned_roles}
-            nonrealm_users = {k : v for k, v in self.objects.items() if k not in self.assigned_roles and k not in self.realm_users}
+            assigned_roles = self.assigned_roles
+            realm_users = Storage([(k, v)
+                                    for k, v in self.realm_users.items()
+                                    if k not in assigned_roles])
+
+            nonrealm_users = Storage([(k, v)
+                                       for k, v in self.objects.items()
+                                       if k not in assigned_roles and \
+                                          k not in self.realm_users])
 
             options = [("", ""),
-                       (T("Realm"), realm_users),
-                       (T("Others"), nonrealm_users)]
+                       (T("Users in my Organisations"), realm_users),
+                       (T("Other Users"), nonrealm_users)]
 
             object_field = Field("foreign_object",
                                  T("User"),
                                  requires=IS_IN_SET(self.objects),
                                  widget=lambda field, value:
-                                     GroupedOptionsWidget.widget(field,
+                                     S3GroupedOptionsWidget.widget(field,
                                                                  value,
                                                                  options=options))
             fields.insert(0, object_field)
         return fields
 
-class PersonRoleManager(EntityRoleManager):
+# =============================================================================
+class S3PersonRoleManager(S3EntityRoleManager):
+
     def __init__(self, *args, **kwargs):
-        super(PersonRoleManager, self).__init__(*args, **kwargs)
+        super(S3PersonRoleManager, self).__init__(*args, **kwargs)
 
         # dictionary {id: name, ...} of pentities
         self.objects = current.s3db.pr_get_entities(types=["org_organisation",
                                                            "org_office"])
 
-    def get_context_data(self, request, **kwargs):
+    # -------------------------------------------------------------------------
+    def get_context_data(self, r, **attr):
         """
             Override to set the context from the perspective of a person
 
             @return: dictionary for view
         """
-        context = super(PersonRoleManager, self).get_context_data(request, **kwargs)
+        context = super(S3PersonRoleManager, self).get_context_data(r, **attr)
         context["foreign_object_label"] = current.T("Organisations and Offices")
         return context
 
+    # -------------------------------------------------------------------------
     def get_entity(self):
         """
             An entity needs to be specified with the "edit" query string
@@ -6701,6 +6761,7 @@ class PersonRoleManager(EntityRoleManager):
             entity = dict(id=int(entity), name=self.objects.get(int(entity), None))
         return entity
 
+    # -------------------------------------------------------------------------
     def get_user(self):
         """
             We are on a person account so we need to find the associated user
@@ -6723,18 +6784,23 @@ class PersonRoleManager(EntityRoleManager):
 
         return dict(id=record.id, name=record[username]) if record else None
 
+    # -------------------------------------------------------------------------
     def get_foreign_object(self):
         """
             We are on a user/person so we want to target an entity (org/office)
         """
         return self.entity
 
+    # -------------------------------------------------------------------------
     def get_assigned_roles(self):
         """
+            @todo: description?
+
             @return: dictionary of assigned roles with entity pe_id as the keys
         """
-        return super(PersonRoleManager, self).get_assigned_roles(user_id=self.user["id"])
+        return super(S3PersonRoleManager, self).get_assigned_roles(user_id=self.user["id"])
 
+    # -------------------------------------------------------------------------
     def get_form_fields(self):
         """
             Return a list of fields, including a field for selecting
@@ -6742,32 +6808,33 @@ class PersonRoleManager(EntityRoleManager):
 
             @return: list of Fields
         """
-        fields = super(PersonRoleManager, self).get_form_fields()
+        s3db = current.s3db
+        fields = super(S3PersonRoleManager, self).get_form_fields()
 
         if not self.entity:
-            options = current.s3db.pr_get_entities(pe_ids=self.realm,
-                                                   types=["org_organisation",
-                                                          "org_office"],
-                                                   group=True)
+            options = s3db.pr_get_entities(pe_ids=self.realm,
+                                           types=["org_organisation",
+                                                  "org_office"],
+                                           group=True)
 
-            nice_name = current.s3db.table("pr_pentity").instance_type.represent
+            nice_name = s3db.table("pr_pentity").instance_type.represent
 
             # filter out options that already have roles assigned
             filtered_options = []
             for entity_type, entities in options.items():
-                entities = {entity_id: entity_name for entity_id, entity_name
-                                                     in entities.items()
-                                                     if entity_id
-                                                     not in self.assigned_roles}
+                entities = Storage([(entity_id, entity_name)
+                                    for entity_id, entity_name
+                                        in entities.items()
+                                    if entity_id not in self.assigned_roles])
                 filtered_options.append((nice_name(entity_type), entities))
 
             object_field = Field("foreign_object",
                                  current.T("Entity"),
                                  requires=IS_IN_SET(self.objects),
                                  widget=lambda field, value:
-                                     GroupedOptionsWidget.widget(field,
-                                                                 value,
-                                                                 options=filtered_options))
+                                     S3GroupedOptionsWidget.widget(field,
+                                                                   value,
+                                                                   options=filtered_options))
             fields.insert(0, object_field)
 
         return fields

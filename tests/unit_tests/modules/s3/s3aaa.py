@@ -8,7 +8,7 @@
 import unittest
 
 from gluon import current
-from s3aaa import S3RoleMatrix, EntityRoleManager, OrgRoleManager, PersonRoleManager
+from s3aaa import S3EntityRoleManager
 
 # =============================================================================
 class S3AuthTests(unittest.TestCase):
@@ -2669,7 +2669,7 @@ class S3AccessibleQueryTests(unittest.TestCase):
 
 
 # =============================================================================
-class EntityRoleManagerTests(unittest.TestCase):
+class S3EntityRoleManagerTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -2680,7 +2680,7 @@ class EntityRoleManagerTests(unittest.TestCase):
         # Test-login as system administrator
         auth.s3_impersonate("admin@example.com")
 
-        self.rm = EntityRoleManager()
+        self.rm = S3EntityRoleManager()
 
         self.user_id = auth.s3_get_user_id("normaluser@example.com")
         self.org_id = 1
@@ -2698,9 +2698,9 @@ class EntityRoleManagerTests(unittest.TestCase):
 
         self.assertEqual(self.rm.get_assigned_roles(user_id=self.user_id),
                          {self.org_id: ["staff_reader", "project_editor"]})
-    
+
         self.assertRaises(RuntimeError, self.rm.get_assigned_roles)
-    
+
     def testUpdateRoles(self):
         # test that the before/after works
         before = ["staff_reader", "project_editor"]
@@ -2752,7 +2752,7 @@ if __name__ == "__main__":
         S3HasPermissionTests,
         S3AccessibleQueryTests,
         S3DelegationTests,
-        EntityRoleManagerTests
+        S3EntityRoleManagerTests
     )
 
 # END ========================================================================
