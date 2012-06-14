@@ -19,10 +19,6 @@ def index():
     return dict(module_name=module_name)
 
 # =============================================================================
-def hierarchy():
-    return dict()
-
-# =============================================================================
 def sector():
     """ RESTful CRUD controller """
 
