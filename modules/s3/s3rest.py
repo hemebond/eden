@@ -1976,7 +1976,7 @@ class S3Resource(object):
             table = s3db[tablename]
         except:
             manager.error = "Undefined table: %s" % tablename
-            raise KeyError(manager.error)
+            raise # KeyError(manager.error)
         self.tablename = tablename
         self.table = table
         # Table alias (needed for self-joins)
@@ -2056,6 +2056,7 @@ class S3Resource(object):
         self.job = None
         self.error = None
         self.error_tree = None
+        self.import_count = 0
 
         # Search
         self.search = model.get_config(self.tablename, "search_method", None)
@@ -3680,6 +3681,7 @@ class S3Resource(object):
         # Commit the import job
         import_job.commit(ignore_errors=ignore_errors)
         self.error = import_job.error
+        self.import_count += import_job.count
         if self.error:
             if ignore_errors:
                 self.error = "%s - invalid items ignored" % self.error
@@ -6065,7 +6067,7 @@ class S3ResourceQuery:
                 if resource is not None:
                     n = "%s.%s" % (resource.alias, n)
                 else:
-                    return
+                    return url_query
             if o == self.LIKE:
                 v = v.replace("%", "*")
             if o == self.EQ:
@@ -6074,8 +6076,12 @@ class S3ResourceQuery:
                 operator = "__%s" % o
             if invert:
                 operator = "%s!" % operator
-            url_query["%s%s" % (n, operator)] = v
-            return
+            key = "%s%s" % (n, operator)
+            if key in url_query:
+                url_query[key] = "%s,%s" % (url_query[key], v)
+            else:
+                url_query[key] = v
+            return url_query
         if op == self.AND:
             lu = l.serialize_url()
             url_query.update(lu)

@@ -321,6 +321,7 @@ deployment_settings.L10n.decimal_separator = "."
 # Should potentially large dropdowns be turned into autocompletes?
 # (unused currently)
 #deployment_settings.ui.autocomplete = True
+#deployment_settings.ui.read_label = "Details"
 #deployment_settings.ui.update_label = "Edit"
 # Enable this for a UN-style deployment
 #deployment_settings.ui.cluster = True
@@ -355,17 +356,15 @@ deployment_settings.L10n.decimal_separator = "."
 # Custom Crud Strings for specific req_req types
 #deployment_settings.req.req_crud_strings = dict()
 #ADD_ITEM_REQUEST = T("Make a Request for Donations")
-#LIST_ITEM_REQUEST = T("List Requests for Donations")
 # req_req Crud Strings for Item Request (type=1)
 #deployment_settings.req.req_crud_strings[1] = Storage(
 #    title_create = ADD_ITEM_REQUEST,
 #    title_display = T("Request for Donations Details"),
-#    title_list = LIST_ITEM_REQUEST,
+#    title_list = T("Requests for Donations"),
 #    title_update = T("Edit Request for Donations"),
 #    title_search = T("Search Requests for Donations"),
 #    subtitle_create = ADD_ITEM_REQUEST,
-#    subtitle_list = T("Requests for Donations"),
-#    label_list_button = LIST_ITEM_REQUEST,
+#    label_list_button = T("List Requests for Donations"),
 #    label_create_button = ADD_ITEM_REQUEST,
 #    label_delete_button = T("Delete Request for Donations"),
 #    msg_record_created = T("Request for Donations Added"),
@@ -373,17 +372,15 @@ deployment_settings.L10n.decimal_separator = "."
 #    msg_record_deleted = T("Request for Donations Canceled"),
 #    msg_list_empty = T("No Requests for Donations"))
 #ADD_PEOPLE_REQUEST = T("Make a Request for Volunteers")
-#LIST_PEOPLE_REQUEST = T("List Requests for Volunteers")
 # req_req Crud Strings for People Request (type=3)
 #deployment_settings.req.req_crud_strings[3] = Storage(
 #    title_create = ADD_PEOPLE_REQUEST,
 #    title_display = T("Request for Volunteers Details"),
-#    title_list = LIST_PEOPLE_REQUEST,
+#    title_list = T("Requests for Volunteers"),
 #    title_update = T("Edit Request for Volunteers"),
 #    title_search = T("Search Requests for Volunteers"),
 #    subtitle_create = ADD_PEOPLE_REQUEST,
-#    subtitle_list = T("Requests for Volunteers"),
-#    label_list_button = LIST_PEOPLE_REQUEST,
+#    label_list_button = T("List Requests for Volunteers"),
 #    label_create_button = ADD_PEOPLE_REQUEST,
 #    label_delete_button = T("Delete Request for Volunteers"),
 #    msg_record_created = T("Request for Volunteers Added"),
@@ -425,18 +422,30 @@ deployment_settings.L10n.decimal_separator = "."
 #deployment_settings.hrm.deletable = True
 # Uncomment to hide the Staff resource
 #deployment_settings.hrm.show_staff = False
-# Uncomment to hide the Volunteer resource
-#deployment_settings.hrm.show_vols = False
 # Uncomment to allow hierarchical categories of Skills, which each need their own set of competency levels.
 #deployment_settings.hrm.skill_types = True
 # Uncomment to use an alternate table for HR experience
 #deployment_settings.hrm.experience = "programme"
 
-# Project Tracking
+# Projects
 # Uncomment this to use settings suitable for a global/regional organisation (e.g. DRR)
-#deployment_settings.project.drr = True
+#deployment_settings.project.mode_3w = True
+# Uncomment this to use DRR (Disaster Risk Reduction) extensions
+#deployment_settings.project.mode_drr = True
+# Uncomment this to use settings suitable for detailed Task management
+#deployment_settings.project.mode_task = True
+# Uncomment this to use Codes for projects
+#deployment_settings.project.codes = True
 # Uncomment this to use Milestones in project/task.
 #deployment_settings.project.milestones = True
+# Uncomment this to disable Sectors in projects
+#deployment_settings.project.sectors = False
+# Uncomment this to use Theme Percentages for projects
+#deployment_settings.project.theme_percentages = True
+# Uncomment this to use multiple Budgets per project
+#deployment_settings.project.multiple_budgets = True
+# Uncomment this to use multiple Organisations per project
+#deployment_settings.project.multiple_organisations = True
 # Uncomment this to customise
 #deployment_settings.project.organisation_roles = {
 #    1: T("Lead Implementer"), # T("Host National Society")

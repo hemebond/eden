@@ -330,17 +330,15 @@ class S3IRSModel(S3Model):
                              *(s3.lx_fields() + meta_fields()))
         # CRUD strings
         ADD_INC_REPORT = T("Add Incident Report")
-        LIST_INC_REPORTS = T("List Incident Reports")
         s3.crud_strings[tablename] = Storage(
             title_create = ADD_INC_REPORT,
             title_display = T("Incident Report Details"),
-            title_list = LIST_INC_REPORTS,
+            title_list = T("Incident Reports"),
             title_update = T("Edit Incident Report"),
             title_upload = T("Import Incident Reports"),
             title_search = T("Search Incident Reports"),
             subtitle_create = T("Add New Incident Report"),
-            subtitle_list = T("Incident Reports"),
-            label_list_button = LIST_INC_REPORTS,
+            label_list_button = T("List Incident Reports"),
             label_create_button = ADD_INC_REPORT,
             label_delete_button = T("Delete Incident Report"),
             msg_record_created = T("Incident Report added"),
@@ -882,7 +880,7 @@ S3.timeline.now = '""", now.isoformat(), """';
                         TD(INPUT(_type="checkbox", _name="ignore_errors", _id="ignore_errors"))),
                         TR("", INPUT(_type="submit", _value=T("Import")))))
 
-            label_list_btn = S3CRUD.crud_string(r.tablename, "title_list")
+            label_list_btn = S3CRUD.crud_string(r.tablename, "label_list_button")
             list_btn = A(label_list_btn,
                          _href=r.url(method="", vars=None),
                          _class="action-btn")
@@ -967,10 +965,12 @@ class S3IRSResponseModel(S3Model):
         human_resource_id = self.hrm_human_resource_id
         location_id = self.gis_location_id
         ireport_id = self.irs_ireport_id
-        
-        if settings.get_hrm_show_staff() and not settings.get_hrm_show_vols():
+
+        hrm = settings.get_hrm_show_staff()
+        vol = settings.has_module("vol")
+        if hrm and not vol:
             hrm_label = T("Staff")
-        elif settings.get_hrm_show_vols() and not settings.get_hrm_show_staff():
+        elif vol and not hrm:
             hrm_label = T("Volunteer")
         else:
             hrm_label = T("Staff/Volunteer")
@@ -1103,12 +1103,6 @@ def irs_rheader(r, tabs=[]):
         s3db = current.s3db
         #s3 = current.response.s3
         settings = current.deployment_settings
-        #if settings.get_hrm_show_staff() and not settings.get_hrm_show_vols():
-        #    hrm_label = T("Staff")
-        #elif settings.get_hrm_show_vols() and not settings.get_hrm_show_staff():
-        #    hrm_label = T("Volunteers")
-        #else:
-        #    hrm_label = T("Staff & Volunteers")
         hrm_label = T("Responder(s)")
             
         tabs = [(T("Report Details"), None),

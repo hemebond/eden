@@ -7,20 +7,22 @@
 module = request.controller
 resourcename = request.function
 
-if module not in deployment_settings.modules:
+if not deployment_settings.has_module(module):
     raise HTTP(404, body="Module disabled: %s" % module)
 
-drr = deployment_settings.get_project_drr()
+mode_task = deployment_settings.get_project_mode_task()
 
 # =============================================================================
 def index():
     """ Module's Home Page """
 
     # Bypass home page & go direct to searching for Projects
-    if deployment_settings.get_project_drr():
-        return project()
-    else:
+    if deployment_settings.get_project_mode_drr():
+        redirect(URL(f="project", args="search"))
+    elif mode_task:
         redirect(URL(f="project", vars={"tasks":1}))
+    else:
+        redirect(URL(f="project"))
 
     module_name = deployment_settings.modules[module].name_nice
     response.title = module_name
@@ -39,7 +41,7 @@ def project():
         # Return simplified controller to pick a Project for which to list the Open Tasks
         table = s3db.project_project
         s3.crud_strings["project_project"].title_list = T("Open Tasks for Project")
-        s3.crud_strings["project_project"].subtitle_list = T("Select Project")
+        #s3.crud_strings["project_project"].sub_title_list = T("Select Project")
         s3mgr.LABEL.READ = "Select"
         s3mgr.LABEL.UPDATE = "Select"
         s3mgr.configure("project_project",
@@ -76,14 +78,6 @@ def project():
 
     # Pre-process
     def prep(r):
-        btable = s3db.project_beneficiary
-        btable.community_id.requires = IS_EMPTY_OR(IS_ONE_OF(db,
-                                                    "project_community.id",
-                                                    "%(name)s",
-                                                    filterby="project_id",
-                                                    filter_opts=[r.id],
-                                                    sort=True))
-
         if r.interactive:
             if r.component is not None:
                 if r.component_name == "organisation":
@@ -131,8 +125,18 @@ def project():
                     if group:
                         if group == "staff":
                             group = 1
+                            db.project_human_resource.human_resource_id.label = T("Staff")
+                            s3.crud_strings["project_human_resource"] = s3.crud_strings["hrm_staff"]
+                            s3.crud_strings["project_human_resource"].update(
+                                subtitle_create = T("Add Staff Member to Project")
+                                )
                         elif group == "volunteer":
                             group = 2
+                            db.project_human_resource.human_resource_id.label = T("Volunteer")
+                            s3.crud_strings["project_human_resource"] = s3.crud_strings["hrm_volunteer"]
+                            s3.crud_strings["project_human_resource"].update(
+                                subtitle_create = T("Add Volunteer to Project")
+                                )
 
                         # Use the group to filter the component list
                         filter_by_type = (db.hrm_human_resource.type == group)
@@ -209,7 +213,7 @@ def project():
                 if validate:
                     response.s3.jquery_ready.append(script)
 
-                if not deployment_settings.get_project_drr():
+                if mode_task:
                     read_url = URL(args=["[id]", "task"])
                     update_url = URL(args=["[id]", "task"])
                     s3mgr.crud.action_buttons(r,
@@ -240,7 +244,7 @@ def hazard():
 def organisation():
     """ RESTful CRUD controller """
 
-    if drr:
+    if deployment_settings.get_project_multiple_organsiations():
         s3mgr.configure("project_organisation",
                         insertable=False,
                         editable=False,
@@ -343,21 +347,20 @@ def activity():
 
     tabs = [(T("Details"), None),
             (T("Contact Persons"), "contact")]
-    if drr:
-        #tabs.append((T("Beneficiaries"), "beneficiary"))
-        tabs.append((T("Documents"), "document"))
-    else:
+    if mode_task:
         tabs.append((T("Tasks"), "task"))
-        #tabs.append((T("Attachments"), "document"))
+        tabs.append((T("Attachments"), "document"))
+    else:
+        tabs.append((T("Documents"), "document"))
 
     rheader = lambda r: s3db.project_rheader(r, tabs)
     return s3_rest_controller(rheader=rheader,
                               csv_template="activity")
 
-
+# -----------------------------------------------------------------------------
 def community():
     """
-    RESTful CRUD controller to display project community information
+        RESTful CRUD controller to display project community information
     """
     tablename = "%s_%s" % (module, resourcename)
     table = s3db[tablename]
@@ -404,8 +407,8 @@ def community():
     response.s3.postp = postp
 
     tabs = [(T("Details"), None),
-            (T("Contact Persons"), "contact"),
             (T("Beneficiaries"), "beneficiary"),
+            (T("Contact People"), "contact"),
             ]
 
     rheader = lambda r: s3db.project_rheader(r, tabs)
@@ -433,204 +436,7 @@ def report():
 def task():
     """ RESTful CRUD controller """
 
-    tablename = "project_task"
-    table = s3db[tablename]
-    # Custom Method to add Comments
-    s3mgr.model.set_method(module, resourcename,
-                           method="discuss",
-                           action=discuss)
-
-    statuses = response.s3.project_task_active_statuses
-    crud_strings = s3.crud_strings[tablename]
-    if "mine" in request.get_vars:
-        # Show the Open Tasks for this User
-        crud_strings.title_list = T("My Open Tasks")
-        crud_strings.msg_list_empty = T("No Tasks Assigned")
-        s3mgr.configure(tablename,
-                        copyable=False,
-                        listadd=False)
-        try:
-            # Add Virtual Fields
-            list_fields = s3mgr.model.get_config(tablename,
-                                                 "list_fields")
-            list_fields.insert(4, (T("Project"), "project"))
-            # Hide the Assignee column (always us)
-            list_fields.remove("pe_id")
-            # Hide the Status column (always 'assigned' or 'reopened')
-            list_fields.remove("status")
-            s3mgr.configure(tablename,
-                            list_fields=list_fields)
-        except:
-            pass
-        if auth.user:
-            pe_id = auth.user.pe_id
-            response.s3.filter = (table.pe_id == pe_id) & \
-                                 (table.status.belongs(statuses))
-    elif "project" in request.get_vars:
-        # Show Open Tasks for this Project
-        project = request.get_vars.project
-        ptable = s3db.project_project
-        try:
-            name = db(ptable.id == project).select(ptable.name,
-                                                   limitby=(0, 1)).first().name
-        except:
-            session.error = T("Project not Found")
-            redirect(URL(args=None, vars=None))
-        crud_strings.title_list = T("Open Tasks for %(project)s") % dict(project=name)
-        crud_strings.title_search = T("Search Open Tasks for %(project)s") % dict(project=name)
-        crud_strings.msg_list_empty = T("No Open Tasks for %(project)s") % dict(project=name)
-        # Add Virtual Fields
-        list_fields = s3mgr.model.get_config(tablename,
-                                             "list_fields")
-        list_fields.insert(2, (T("Activity"), "activity"))
-        s3mgr.configure(tablename,
-                        # Block Add until we get the injectable component lookups
-                        insertable=False,
-                        deletable=False,
-                        copyable=False,
-                        #search_method=task_search,
-                        list_fields=list_fields)
-        ltable = s3db.project_task_project
-        response.s3.filter = (ltable.project_id == project) & \
-                             (ltable.task_id == table.id) & \
-                             (table.status.belongs(statuses))
-    else:
-        crud_strings.title_list = T("All Tasks")
-        crud_strings.title_search = T("All Tasks")
-        list_fields = s3mgr.model.get_config(tablename,
-                                             "list_fields")
-        list_fields.insert(2, (T("Project"), "project"))
-        list_fields.insert(3, (T("Activity"), "activity"))
-        s3mgr.configure(tablename,
-                        report_options=Storage(
-                            search=[
-                                s3base.S3SearchOptionsWidget(
-                                    field="project",
-                                    name="project",
-                                    label=T("Project")
-                                )
-                            ]
-                        ),
-                        list_fields=list_fields)
-        if "open" in request.get_vars:
-            # Show Only Open Tasks
-            crud_strings.title_list = T("All Open Tasks")
-            response.s3.filter = (table.status.belongs(statuses))
-
-    # Pre-process
-    def prep(r):
-        if r.interactive:
-            if r.record:
-                # Put the Comments in the RFooter
-                ckeditor()
-                response.s3.rfooter = LOAD("project", "comments.load", args=["task", r.id], ajax=True)
-            if r.component:
-                if r.component_name == "req":
-                    if deployment_settings.has_module("hrm"):
-                        r.component.table.type.default = 3
-                    if r.method != "update" and r.method != "read":
-                        # Hide fields which don't make sense in a Create form
-                        s3db.req_create_form_mods()
-                elif r.component_name == "human_resource":
-                    r.component.table.type.default = 2
-            else:
-                if not auth.s3_has_role("STAFF"):
-                    # Hide fields to avoid confusion (both of inputters & recipients)
-                    table = r.table
-                    field = table.source
-                    field.readable = field.writable = False
-                    field = table.pe_id
-                    field.readable = field.writable = False
-                    field = table.date_due
-                    field.readable = field.writable = False
-                    field = table.milestone_id
-                    field.readable = field.writable = False
-                    field = table.time_estimated
-                    field.readable = field.writable = False
-                    field = table.time_actual
-                    field.readable = field.writable = False
-                    field = table.status
-                    field.readable = field.writable = False
-        return True
-    response.s3.prep = prep
-
-    # Post-process
-    def postp(r, output):
-        if r.interactive:
-            if r.method != "import":
-                update_url = URL(args=["[id]"], vars=request.get_vars)
-                s3mgr.crud.action_buttons(r,
-                                          update_url=update_url)
-                if not r.component and \
-                   r.method != "search" and \
-                   "form" in output:
-                    # Insert fields to control the Project & Activity
-                    sep = ": "
-                    if auth.s3_has_role("STAFF"):
-                        # Activity not easy for non-Staff to know about, so don't add
-                        table = s3db.project_task_activity
-                        field = table.activity_id
-                        if r.record:
-                            query = (table.task_id == r.record.id)
-                            default = db(query).select(table.activity_id,
-                                                       limitby=(0, 1)).first()
-                            if default:
-                                default = default.activity_id
-                        else:
-                            default = field.default
-                        widget = field.widget or SQLFORM.widgets.options.widget(field, default)
-                        field_id = '%s_%s' % (table._tablename, field.name)
-                        label = field.label
-                        label = LABEL(label, label and sep, _for=field_id,
-                                      _id=field_id + SQLFORM.ID_LABEL_SUFFIX)
-                        row_id = field_id + SQLFORM.ID_ROW_SUFFIX
-                        activity = s3.crud.formstyle(row_id, label, widget, field.comment)
-                        try:
-                            output["form"][0].insert(0, activity[1])
-                        except:
-                            # A non-standard formstyle with just a single row
-                            pass
-                        try:
-                            output["form"][0].insert(0, activity[0])
-                        except:
-                            pass
-                        s3.scripts.append("%s/s3.project.js" % s3_script_dir)
-                    if "project" in request.get_vars:
-                        widget = INPUT(value=request.get_vars.project, _name="project_id")
-                        project = s3.crud.formstyle("project_task_project__row", "", widget, "")
-                    else:
-                        table = s3db.project_task_project
-                        field = table.project_id
-                        if r.record:
-                            query = (table.task_id == r.record.id)
-                            default = db(query).select(table.project_id,
-                                                       limitby=(0, 1)).first()
-                            if default:
-                                default = default.project_id
-                        else:
-                            default = field.default
-                        widget = field.widget or SQLFORM.widgets.options.widget(field, default)
-                        field_id = '%s_%s' % (table._tablename, field.name)
-                        label = field.label
-                        label = LABEL(label, label and sep, _for=field_id,
-                                      _id=field_id + SQLFORM.ID_LABEL_SUFFIX)
-                        comment = field.comment if auth.s3_has_role("STAFF") else ""
-                        row_id = field_id + SQLFORM.ID_ROW_SUFFIX
-                        project = s3.crud.formstyle(row_id, label, widget, comment)
-                    try:
-                        output["form"][0].insert(0, project[1])
-                    except:
-                        # A non-standard formstyle with just a single row
-                        pass
-                    try:
-                        output["form"][0].insert(0, project[0])
-                    except:
-                        pass
-
-        return output
-    response.s3.postp = postp
-
-    return s3_rest_controller(rheader=s3db.project_rheader)
+    return s3db.project_task_controller()
 
 # =============================================================================
 def task_project():
@@ -704,57 +510,6 @@ def time():
 # =============================================================================
 # Comments
 # =============================================================================
-def ckeditor():
-    """ Load the Project Comments JS """
-
-    ckeditor = URL(c="static", f="ckeditor", args="ckeditor.js")
-    response.s3.scripts.append(ckeditor)
-    adapter = URL(c="static", f="ckeditor", args=["adapters",
-                                                  "jquery.js"])
-    response.s3.scripts.append(adapter)
-
-    # Toolbar options: http://docs.cksource.com/CKEditor_3.x/Developers_Guide/Toolbar
-    js = "".join(("""
-S3.i18n.reply = '""", str(T("Reply")), """';
-var img_path = S3.Ap.concat('/static/img/jCollapsible/');
-var ck_config = {toolbar:[['Bold','Italic','-','NumberedList','BulletedList','-','Link','Unlink','-','Smiley','-','Source','Maximize']],toolbarCanCollapse:false,removePlugins:'elementspath'};
-function comment_reply(id) {
-    $('#project_comment_task_id__row').hide();
-    $('#project_comment_task_id__row1').hide();
-    $('#comment-title').html(S3.i18n.reply);
-    var editor = $('#project_comment_body').ckeditorGet();
-    editor.destroy();
-    $('#project_comment_body').ckeditor(ck_config);
-    $('#comment-form').insertAfter($('#comment-' + id));
-    $('#project_comment_parent').val(id);
-    var task_id = $('#comment-' + id).attr('task_id');
-    $('#project_comment_task_id').val(task_id);
-}"""))
-
-    response.s3.js_global.append(js)
-
-def discuss(r, **attr):
-    """ Custom Method to manage the discussion of a Task """
-
-    #if r.component:
-    #    resourcename = "activity"
-    #    id = r.component_id
-    #else:
-    resourcename = "task"
-    id = r.id
-
-    # Add the RHeader to maintain consistency with the other pages
-    rheader = s3db.project_rheader(r)
-
-    # Load the Project Comments JS
-    ckeditor()
-
-    response.view = "project/discuss.html"
-    return dict(rheader=rheader,
-                resourcename=resourcename,
-                id=id)
-
-# -----------------------------------------------------------------------------
 def comment_parse(comment, comments, task_id=None):
     """
         Parse a Comment

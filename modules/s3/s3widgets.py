@@ -377,7 +377,7 @@ class S3AutocompleteWidget(FormWidget):
     """
 
     def __init__(self,
-                 prefix,
+                 module,
                  resourcename,
                  fieldname = "name",
                  link_filter = "",
@@ -385,7 +385,7 @@ class S3AutocompleteWidget(FormWidget):
                  delay = 450,     # milliseconds
                  min_length = 2): # Increase this for large deployments
 
-        self.prefix = prefix
+        self.module = module
         self.resourcename = resourcename
         self.fieldname = fieldname
         self.link_filter = link_filter
@@ -415,7 +415,7 @@ class S3AutocompleteWidget(FormWidget):
 
         # Script defined in static/scripts/S3/S3.js
         js_autocomplete = "S3.autocomplete('%s','%s','%s','%s','%s','%s',%s,%s);\n" % \
-            (self.fieldname, self.prefix, self.resourcename, real_input,
+            (self.fieldname, self.module, self.resourcename, real_input,
              self.link_filter, self.post_process, self.delay, self.min_length)
 
         if value:
@@ -2246,6 +2246,7 @@ class CheckboxesWidgetS3(OptionsWidget):
         values = [str(v) for v in values]
 
         attr = OptionsWidget._attributes(field, {}, **attributes)
+        attr["_class"] = "checkboxes-widget-s3" # need to
 
         requires = field.requires
         if not isinstance(requires, (list, tuple)):
@@ -2274,16 +2275,20 @@ class CheckboxesWidgetS3(OptionsWidget):
                                     _name=field.name,
                                     _value=None))))
 
+        w_index = 0
         for r_index in range(rows):
             tds = []
             for k, v in options[r_index * cols:(r_index + 1) * cols]:
-                tds.append(TD(LABEL(INPUT(_type="checkbox",
-                                          _name=field.name,
-                                          requires=attr.get("requires", None),
-                                          hideerror=True,
-                                          _value=k,
-                                          value=(str(k) in values)),
-                                          v)))
+                field_id = "id_%s_%s" % (field.name, w_index)
+                tds.append(TD(INPUT(_type="checkbox",
+                                    _name=field.name,
+                                    _id=field_id,
+                                    requires=attr.get("requires", None),
+                                    hideerror=True,
+                                    _value=k,
+                                    value=(str(k) in values)),
+                              LABEL(v, _for=field_id)))
+                w_index += 1
             opts.append(TR(tds))
 
         if opts:

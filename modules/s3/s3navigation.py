@@ -27,7 +27,6 @@
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
     OTHER DEALINGS IN THE SOFTWARE.
 
-    @status: work in progress - help welcome!
     @todo: - re-write tabs and popup links as S3NavigationItems
            - refine check_selected (e.g. must be False if link=False)
            - implement collapse-flag (render only components in a TAG[""])
@@ -1275,6 +1274,7 @@ class S3ComponentTabs:
                 if "viewing" in _vars:
                     del _vars["viewing"]
                 _href = URL(function, args=args, vars=_vars)
+                _id = "rheader_tab_%s" % component
             else:
                 args = []
                 if function != r.name:
@@ -1288,8 +1288,10 @@ class S3ComponentTabs:
                     if "viewing" not in _vars and record_id:
                         args = [record_id]
                 _href = URL(function, args=args, vars=_vars)
+                _id = "rheader_tab_%s" % function
 
-            rheader_tabs.append(SPAN(A(tab.title, _href=_href), _class=_class))
+            rheader_tabs.append(SPAN(A(tab.title, _href=_href, _id=_id,), 
+                                     _class=_class,))
 
         if rheader_tabs:
             rheader_tabs = DIV(rheader_tabs, _class="tabs")
@@ -1574,7 +1576,7 @@ class S3ResourceHeader:
                             value = field.represent(value)
                     tr.append(TH("%s: " % label))
                     v = value
-                    if not isinstance(v, basestring):
+                    if not isinstance(v, basestring) and not isinstance(value, A):
                         try:
                             v = unicode(v)
                         except UnicodeEncodeError, UnicodeDecodeError:

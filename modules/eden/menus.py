@@ -516,7 +516,6 @@ class S3OptionsMenu:
         session = current.session
         ADMIN = session.s3.system_roles.ADMIN
 
-        # @ToDo - Fix s3.crud_strings["cr_shelter"].subtitle_list
         settings = current.deployment_settings
         if settings.get_ui_camp():
             shelter = "Camps"
@@ -797,7 +796,6 @@ class S3OptionsMenu:
     def hrm(self):
         """ HRM / Human Resources Management """
 
-        settings = current.deployment_settings
         s3 = current.session.s3
         ADMIN = s3.system_roles.ADMIN
 
@@ -808,13 +806,9 @@ class S3OptionsMenu:
         is_org_admin = lambda i: s3.hrm.orgs and True or \
                                  ADMIN in s3.roles
 
-        show_staff = lambda i: settings.get_hrm_show_staff()
-        show_vols = lambda i: settings.get_hrm_show_vols()
-        show_programmes = lambda i: s3.hrm.mode is None and settings.get_hrm_experience() == "programme"
-
         return M(c="hrm")(
                     M("Staff", f="staff",
-                      check=[manager_mode, show_staff])(
+                      check=[manager_mode])(
                         M("New Staff Member", m="create"),
                         M("List All"),
                         M("Search", m="search"),
@@ -828,8 +822,80 @@ class S3OptionsMenu:
                         M("Import", f="person", m="import",
                           vars={"group":"staff"}, p="create"),
                     ),
+                    M("Teams", f="group",
+                      check=manager_mode)(
+                        M("New Team", m="create"),
+                        M("List All"),
+                    ),
+                    M("Job Role Catalog", f="job_role",
+                      check=manager_mode)(
+                        M("New Job Role", m="create"),
+                        M("List All"),
+                    ),
+                    M("Skill Catalog", f="skill",
+                      check=manager_mode)(
+                        M("New Skill", m="create"),
+                        M("List All"),
+                        #M("Skill Provisions", f="skill_provision"),
+                    ),
+                    M("Training Events", f="training_event",
+                      check=manager_mode)(
+                        M("New Training Event", m="create"),
+                        M("List All Training Events"),
+                        M("Search Training Events", m="search"),
+                        M("Search Training Participants", f="training",
+                          m="search"),
+                        M("Training Report", f="training", m="report",
+                          vars=dict(rows="training_event_id$course_id",
+                                    cols="month",
+                                    fact="person_id",
+                                    aggregate="count")),
+                        M("Import Participant List", f="training", m="import"),
+                    ),
+                    M("Training Course Catalog", f="course",
+                      check=manager_mode)(
+                        M("New Training Course", m="create"),
+                        M("List All"),
+                        #M("Course Certificates", f="course_certificate"),
+                    ),
+                    M("Certificate Catalog", f="certificate",
+                      check=manager_mode)(
+                        M("New Certificate", m="create"),
+                        M("List All"),
+                        #M("Skill Equivalence", f="certificate_skill"),
+                    ),
+                    M("Personal Profile", f="person",
+                      check=personal_mode, vars=dict(mode="personal")),
+                    # This provides the link to switch to the manager mode:
+                    M("Staff Management", f="index",
+                      check=[personal_mode, is_org_admin]),
+                    # This provides the link to switch to the personal mode:
+                    M("Personal Profile", f="person",
+                      check=manager_mode, vars=dict(mode="personal"))
+                )
+
+    # -------------------------------------------------------------------------
+    def vol(self):
+        """ Volunteer Management """
+
+        s3 = current.session.s3
+        ADMIN = s3.system_roles.ADMIN
+
+        # Custom conditions for the check-hook, as lambdas in order
+        # to have them checked only immediately before rendering:
+        manager_mode = lambda i: s3.hrm.mode is None
+        personal_mode = lambda i: s3.hrm.mode is not None
+        is_org_admin = lambda i: s3.hrm.orgs and True or \
+                                 ADMIN in s3.roles
+
+        settings = current.deployment_settings
+        show_programmes = lambda i: settings.get_hrm_experience() == "programme"
+        show_tasks = lambda i: settings.has_module("project") and \
+                               settings.get_project_mode_task()
+
+        return M(c="vol")(
                     M("Volunteers", f="volunteer",
-                      check=[manager_mode, show_vols])(
+                      check=[manager_mode])(
                         M("New Volunteer", m="create"),
                         M("List All"),
                         M("Search", m="search"),
@@ -884,15 +950,19 @@ class S3OptionsMenu:
                         #M("Skill Equivalence", f="certificate_skill"),
                     ),
                     M("Programmes", f="programme",
-                      check=show_programmes)(
+                      check=[manager_mode, show_programmes])(
                         M("New Programme", m="create"),
                         M("List All"),
                         M("Import Hours", f="programme_hours", m="import"),
                     ),
-                    M("Profile", f="person",
+                    M("My Profile", f="person",
                       check=personal_mode, vars=dict(mode="personal")),
+                    M("My Tasks", f="task",
+                      check=[personal_mode, show_tasks],
+                      vars=dict(mode="personal",
+                                mine=1)),
                     # This provides the link to switch to the manager mode:
-                    M("Human Resources", f="index",
+                    M("Volunteer Management", f="index",
                       check=[personal_mode, is_org_admin]),
                     # This provides the link to switch to the personal mode:
                     M("Personal Profile", f="person",
@@ -908,7 +978,7 @@ class S3OptionsMenu:
 
         current.s3db.inv_recv_crud_strings()
         crud_strings = current.response.s3.crud_strings
-        inv_recv_list = crud_strings.inv_recv.subtitle_list
+        inv_recv_list = crud_strings.inv_recv.title_list
         inv_recv_search = crud_strings.inv_recv.title_search
 
         use_commit = lambda i: current.deployment_settings.get_req_use_commit()
@@ -1271,11 +1341,11 @@ class S3OptionsMenu:
 
         project_menu = M(c="project")
 
-        if settings.get_project_drr():
+        if settings.get_project_mode_drr():
             project_menu(
                     M("Projects", f="project")(
                         M("Add New Project", m="create"),
-                        M("List All Projects", f="project"),
+                        M("List All Projects"),
                         M("Search", m="search"),
                     ),
                     M("Communities", f="community")(
@@ -1285,17 +1355,9 @@ class S3OptionsMenu:
                         M("Search Community Contacts", f="community_contact",
                           m="search"),
                     ),
-                    M("Activities", f="activity")(
-                        M("List All Activities"),
-                        M("Search Activities", m="search"),
-                    ),
                     M("Reports", f="report")(
-                        M("Who is doing What Where", f="activity", m="report"),
-                        M("Beneficiaries", f="beneficiary", m="report",
-                          vars=Storage(rows="project_id",
-                                       cols="beneficiary_type_id",
-                                       fact="number",
-                                       aggregate="sum")),
+                        M("Who is doing What Where", f="community", m="report"),
+                        M("Beneficiaries", f="beneficiary", m="report"),
                         M("Funding", f="organisation", args="report"),
                     ),
                     M("Import", f="index")(
@@ -1304,8 +1366,6 @@ class S3OptionsMenu:
                         M("Import Project Organizations", f="organisation",
                           m="import", p="create"),
                         M("Import Project Communities", f="community",
-                          m="import", p="create"),
-                        M("Import Project Activities", f="activity",
                           m="import", p="create"),
                     ),
                     M("Activity Types", f="activity_type")(
@@ -1327,60 +1387,92 @@ class S3OptionsMenu:
                     ),
                 )
 
-        elif auth.s3_has_role("STAFF"):
+        elif settings.get_project_mode_3w():
             project_menu(
                     M("Projects", f="project")(
                         M("Add New Project", m="create"),
                         M("List All Projects"),
-                        M("Open Tasks for Project", vars={"tasks":1}),
+                        M("Search", m="search"),
+                        M("Import", m="import", p="create"),
                     ),
-                    M("Tasks", f="task")(
-                        M("Add New Task", m="create"),
-                        #M("List All Tasks"),
-                        M("Search All Tasks", m="search"),
-                    ),
-                    M("Daily Work", f="time")(
-                        M("My Logged Hours", vars={"mine":1}),
-                        M("Last Week's Work", m="report",
-                          vars=Storage(rows="person_id",
-                                       cols="day",
-                                       fact="hours",
-                                       aggregate="sum",
-                                       week=1)),
-                        M("My Open Tasks", f="task", vars={"mine":1}),
-                    ),
-                    M("Admin", restrict=[ADMIN])(
-                        M("Activity Types", f="activity_type"),
-                        M("Organizations", f="organisation"),
-                        M("Import Tasks", f="task", m="import", p="create"),
-                    ),
-                    # Q: Shouldn't this be allowed for HR_ADMINs, too?
-                    M("Reports", restrict=[ADMIN], f="report")(
-                        M("Activity Report", f="activity", m="report",
-                          vars=Storage(rows="project_id",
-                                       cols="name",
-                                       fact="time_actual",
-                                       aggregate="sum")),
-                        M("Community Report", f="community", m="report"),
-                        M("Project Time Report", f="time", m="report",
-                          vars=Storage(rows="project",
-                                       cols="person_id",
-                                       fact="hours",
-                                       aggregate="sum")),
+                    M("Project Themes", f="theme")(
+                        M("Add New Theme", m="create"),
+                        M("List All Themes"),
                     ),
                 )
+
+        elif settings.get_project_mode_task():
+            if auth.s3_has_role("STAFF"):
+                project_menu(
+                        M("Projects", f="project")(
+                            M("Add New Project", m="create"),
+                            M("List All Projects"),
+                            M("Open Tasks for Project", vars={"tasks":1}),
+                        ),
+                        M("Tasks", f="task")(
+                            M("Add New Task", m="create"),
+                            #M("List All Tasks"),
+                            M("Search All Tasks", m="search"),
+                        ),
+                        M("Daily Work", f="time")(
+                            M("My Logged Hours", vars={"mine":1}),
+                            M("Last Week's Work", m="report",
+                              vars=Storage(rows="person_id",
+                                           cols="day",
+                                           fact="hours",
+                                           aggregate="sum",
+                                           week=1)),
+                            M("My Open Tasks", f="task", vars={"mine":1}),
+                        ),
+                        M("Admin", restrict=[ADMIN])(
+                            M("Activity Types", f="activity_type"),
+                            M("Import Tasks", f="task", m="import", p="create"),
+                        ),
+                        M("Reports", f="report")(
+                            M("Activity Report", f="activity", m="report",
+                              vars=Storage(rows="project_id",
+                                           cols="name",
+                                           fact="time_actual",
+                                           aggregate="sum")),
+                            M("Project Time Report", f="time", m="report",
+                              vars=Storage(rows="project",
+                                           cols="person_id",
+                                           fact="hours",
+                                           aggregate="sum")),
+                        ),
+                    )
+            else:
+                project_menu(
+                        M("Projects", f="project")(
+                            M("List All Projects"),
+                            M("Open Tasks for Project", vars={"tasks":1}),
+                        ),
+                        M("Tasks", f="task")(
+                            M("Add New Task", m="create"),
+                            M("List All Tasks"),
+                            M("Search", m="search"),
+                        ),
+
+                    )
+
         else:
             project_menu(
                     M("Projects", f="project")(
+                        M("Add New Project", m="create"),
                         M("List All Projects"),
-                        M("Open Tasks for Project", vars={"tasks":1}),
-                    ),
-                    M("Tasks", f="task")(
-                        M("Add New Task", m="create"),
-                        M("List All Tasks"),
                         M("Search", m="search"),
+                        M("Import", m="import", p="create"),
                     ),
-
+                    M("Activities", f="activity")(
+                        M("Add New Activity", m="create"),
+                        M("List All Activities"),
+                        M("Search", m="search"),
+                        M("Import", m="import", p="create"),
+                    ),
+                    M("Project Themes", f="theme")(
+                        M("Add New Theme", m="create"),
+                        M("List All Themes"),
+                    ),
                 )
 
         return project_menu
@@ -1425,24 +1517,6 @@ class S3OptionsMenu:
                         M("List All"),
                         M("Search", m="search"),
                     ),
-                )
-
-    # -------------------------------------------------------------------------
-    def vol(self):
-        """ VOL / Volunteer """
-
-        # @todo: this module does not longer exist - remove menu?
-
-        settings = current.deployment_settings
-
-        # Custom conditions
-        logged_in = lambda i: current.auth.user is not None
-        hrm_enabled = lambda i: settings.has_module("hrm")
-        project_enabled = lambda i: settings.has_module("project")
-
-        return M(c="vol")(
-                    M("My Details", f="person", check=[logged_in, hrm_enabled]),
-                    M("My Tasks", f="task", check=[logged_in, project_enabled]),
                 )
 
     # -------------------------------------------------------------------------
