@@ -2237,7 +2237,7 @@ class S3Resource(object):
                 left_joins.append(join)
         if left_joins:
             try:
-                left_joins.sort(self.__sortleft)
+                left_joins.sort(self.sortleft)
             except:
                 pass
             left = left_joins
@@ -2765,7 +2765,7 @@ class S3Resource(object):
         distinct = self.rfilter.distinct
         if left_joins:
             try:
-                left_joins.sort(self.__sortleft)
+                left_joins.sort(self.sortleft)
             except:
                 pass
             left = left_joins
@@ -2982,6 +2982,7 @@ class S3Resource(object):
         """
 
         db = current.db
+        gis = current.gis
 
         manager = current.manager
         model = manager.model
@@ -3010,17 +3011,32 @@ class S3Resource(object):
         # Load slice
         self.load(start=start, limit=limit)
 
-        _vars = current.request.get_vars
-        layer_id = _vars.layer
-        if layer_id:
-            # We're being called as a GIS Feature Layer, so do lookup per layer
-            # and not per-record
-            # Marker, Popup & LatLon
-            marker = current.gis.get_marker_and_popup(layer_id, self)
+        format = current.auth.permission.format
+        request = current.request
+        if format == "geojson":
+            # Marker will be added in show_map()
+            marker = None
+            # Lookups per layer not per record
+            _vars = request.get_vars
+            layer_id = _vars.get("layer", None)
+            if layer_id:
+                # GIS Feature Layer
+                locations = gis.get_locations_and_popups(self, layer_id)
+            elif self.tablename == "gis_theme_data":
+                # GIS Theme Layer
+                locations = gis.get_theme_geojson(self)
+            else:
+                # e.g. Search results
+                locations = gis.get_locations_and_popups(self)
+        elif format == "georss" or \
+             format == "kml":
+            marker = gis.get_marker(request.controller,
+                                    request.function)
+            locations = gis.get_locations_and_popups(self)
         else:
-            # Marker provided in request
-            # Q: What does this?
-            marker = _vars.get("marker", None)
+            marker = gis.get_marker(request.controller,
+                                    request.function)
+            locations = None
 
         # Build the tree
         if DEBUG:
@@ -3046,7 +3062,8 @@ class S3Resource(object):
                                       components=mcomponents,
                                       skip=skip,
                                       msince=msince,
-                                      marker=marker)
+                                      marker=marker,
+                                      locations=locations)
             if element is None:
                 results -= 1
         if DEBUG:
@@ -3110,8 +3127,8 @@ class S3Resource(object):
                                               export_map=export_map,
                                               components=rcomponents,
                                               skip=skip,
-                                              msince=msince,
-                                              marker=marker)
+                                              marker=marker,
+                                              locations=locations)
 
                     # Mark as referenced element (for XSLT)
                     if element is not None:
@@ -3146,8 +3163,10 @@ class S3Resource(object):
                           skip=[],
                           msince=None,
                           marker=None,
+                          locations=None,
                           popup_label=None,
-                          popup_fields=None):
+                          popup_fields=None
+                          ):
         """
             Add a <resource> to the element tree
 
@@ -3163,6 +3182,7 @@ class S3Resource(object):
             @param skip: fields to skip
             @param msince: the minimum update datetime for exported records
             @param marker: the marker for GIS encoding
+            @param locations: the locations for GIS encoding
         """
 
         manager = current.manager
@@ -3188,7 +3208,8 @@ class S3Resource(object):
                                export_map=export_map,
                                url=record_url,
                                msince=msince,
-                               marker=marker)
+                               marker=marker,
+                               locations=locations)
         if element is not None:
             add = True
 
@@ -3274,7 +3295,9 @@ class S3Resource(object):
                         export_map=None,
                         url=None,
                         msince=None,
-                        marker=None):
+                        marker=None,
+                        locations=None
+                        ):
         """
             Exports a single record to the element tree.
 
@@ -3333,7 +3356,7 @@ class S3Resource(object):
 
         # GIS-encode the element
         xml.gis_encode(self, record, element, rmap,
-                       marker=marker)
+                       marker=marker, locations=locations)
 
         return (element, rmap)
 
@@ -4568,7 +4591,7 @@ class S3Resource(object):
         # Sort left joins and add to attributes
         if left_joins:
             try:
-                left_joins.sort(self.__sortleft)
+                left_joins.sort(self.sortleft)
             except:
                 pass
             attributes.update(left=left_joins)
@@ -5350,7 +5373,7 @@ class S3ResourceFilter:
                 left_joins.append(join)
         if left_joins:
             try:
-                left_joins.sort(self.__sortleft)
+                left_joins.sort(resource.sortleft)
             except:
                 pass
             left = left_joins
@@ -5396,7 +5419,7 @@ class S3ResourceFilter:
         left_joins = self.get_left_joins()
         if left_joins:
             try:
-                left_joins.sort(self.__sortleft)
+                left_joins.sort(resource.sortleft)
             except:
                 pass
             left = left_joins

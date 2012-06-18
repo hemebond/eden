@@ -1780,18 +1780,3 @@ a:visited:after {
 .widget-org-hierarchy-menu .ui-menu a {
     cursor: pointer;
 }
-
-.widget-org-hierarchy-crumbs {
-    list-style: none;
-}
-.widget-org-hierarchy-crumbs li {
-    display: inline;
-    cursor: pointer;
-}
-.widget-org-hierarchy-crumbs li:after {
-    content: " > ";
-}
-.widget-org-hierarchy-crumbs li.selected a {
-    text-decoration: none;
-    border-bottom: 1px dashed black;
-}

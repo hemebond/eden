@@ -2504,11 +2504,11 @@ class S3AutocompleteOrAddWidget(FormWidget):
         - an add widget which is used to add an object.
             It fills the field with that object after successful addition
     """
-    def __init__(
-        self,
-        autocomplete_widget,
-        add_widget
-    ):
+    def __init__(self,
+                 autocomplete_widget,
+                 add_widget
+                ):
+
         self.autocomplete_widget = autocomplete_widget
         self.add_widget = add_widget
 
@@ -2534,15 +2534,14 @@ class S3AddObjectWidget(FormWidget):
             after a successful submission, the response callback is handed the
             response.
     """
-    def __init__(
-        self,
-        form_url,
-        table_name,
+    def __init__(self,
+                 form_url,
+                 table_name,
+                 dummy_field_selector,
+                 on_show,
+                 on_hide
+                ):
 
-        dummy_field_selector,
-        on_show,
-        on_hide
-    ):
         self.form_url = form_url
         self.table_name = table_name
 
@@ -3023,7 +3022,7 @@ class S3EmbedComponentWidget(FormWidget):
             select = "select_component($('#%s').val());" % real_input
             if pp is not None:
                 select = "%s%s" % (pp, select)
-            widget = S3AutocompleteWidget(prefix=prefix,
+            widget = S3AutocompleteWidget(prefix,
                                           resourcename=resourcename,
                                           fieldname=self.autocomplete,
                                           link_filter=self.link_filter,

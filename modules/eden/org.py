@@ -1365,6 +1365,7 @@ class S3OfficeModel(S3Model):
             title_update = T("Edit Office"),
             title_search = T("Search Offices"),
             title_upload = T("Import Offices"),
+            title_map = T("Map of Offices"),
             subtitle_create = T("Add New Office"),
             label_list_button = T("List Offices"),
             label_create_button = T("Add New Office"),
@@ -2074,6 +2075,7 @@ def org_office_controller():
         rheader = s3db.inv_warehouse_rheader
     else:
         rheader = s3db.org_rheader
-    return s3_rest_controller("org", "office", rheader=rheader)
+    output = s3_rest_controller("org", "office", rheader=rheader)
+    return output
 
 # END =========================================================================
