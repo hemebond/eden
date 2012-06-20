@@ -720,12 +720,6 @@ class S3Config(Storage):
         """
         return self.project.get("activities", False)
 
-    def get_project_aims(self):
-        """
-            Use Aims in Projects
-        """
-        return self.project.get("aims", False)
-
     def get_project_codes(self):
         """
             Use Codes in Projects
@@ -792,8 +786,8 @@ class S3Config(Storage):
     # Message Parser Settings
     def get_parser_enabled(self):
             return self.parser.get("parser_enabled")
-    
-    
+
+
     # -------------------------------------------------------------------------
     # Active modules list
     def has_module(self, module_name):

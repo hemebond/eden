@@ -76,10 +76,10 @@ from gluon import current
 from gluon.storage import Storage
 from gluon.sqlhtml import *
 
+import gluon.contrib.simplejson as json
+
 from s3utils import *
 from s3validators import *
-
-import gluon.contrib.simplejson as json
 
 repr_select = lambda l: len(l.name) > 48 and "%s..." % l.name[:44] or l.name
 
@@ -595,7 +595,7 @@ class S3OrganisationAutocompleteWidget(FormWidget):
 class S3OrganisationHierarchyWidget(OptionsWidget):
     """ Renders an organisation_id SELECT as a menu """
 
-    _class="widget-org-hierarchy"
+    _class = "widget-org-hierarchy"
 
     def __init__(self, primary_options=None):
         """
@@ -605,14 +605,14 @@ class S3OrganisationHierarchyWidget(OptionsWidget):
 
     def __call__(self, field, value, **attributes):
 
-        db = current.db
         s3 = current.response.s3
         table = current.s3db.org_organisation
         options = self.primary_options
 
         if options is None:
             requires = field.requires
-            if isinstance(requires, (list, tuple)) and len(requires):
+            if isinstance(requires, (list, tuple)) and \
+               len(requires):
                 requires = requires[0]
             if requires is not None:
                 if isinstance(requires, IS_EMPTY_OR):
@@ -620,9 +620,9 @@ class S3OrganisationHierarchyWidget(OptionsWidget):
                 if hasattr(requires, "options"):
                     options = requires.options()
                     ids = [option[0] for option in options if option[0]]
-                    rows = db(table.id.belongs(ids)).select(table.id,
-                                                            table.pe_id,
-                                                            table.name)
+                    rows = current.db(table.id.belongs(ids)).select(table.id,
+                                                                    table.pe_id,
+                                                                    table.name)
                     options = []
                     for row in rows:
                         options.append(row.as_dict())
