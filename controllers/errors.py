@@ -18,7 +18,7 @@
 """
 
 from gluon.http import defined_status
-response.s3.stylesheets.append( "S3/errorpages.css" )
+#s3.stylesheets.append("S3/errorpages.css")
 
 error_messages = {
   "NA":(T("Oops! Something went wrong..."),[]),
@@ -71,7 +71,7 @@ def index():
     if ext:
         fmt = ext[-1].rsplit(".", 1)[1].lower()
         if fmt not in ("html", "iframe", "popup"):
-            xml = current.manager.xml
+            xml = current.xml
             code = request.vars["code"]
             headers = {"Content-Type":"application/json"}
             raise HTTP(code,

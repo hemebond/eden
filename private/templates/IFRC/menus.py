@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from gluon import *
+from gluon import current
 from s3 import *
 from eden.layouts import *
 try:
@@ -16,14 +16,16 @@ class S3MainMenu(default.S3MainMenu):
     # -------------------------------------------------------------------------
     @classmethod
     def menu(cls):
-        """ Compose Menu (example) """
+        """ Compose Menu """
 
+        # Modules menus
         main_menu = MM()(
             cls.menu_modules(),
         )
 
-        # Have an additional separate personal menu
+        # Additional menus
         current.menu.personal = cls.menu_personal()
+        current.menu.dashboard = cls.menu_dashboard()
 
         return main_menu
 
@@ -81,14 +83,103 @@ class S3MainMenu(default.S3MainMenu):
             ),
             homepage("project")(
                 MM("Projects", c="project", f="project"),
-                MM("Communities", c="project", f="activity"),
-                MM("Reports", c="project", f="report"),
+                MM("Communities", c="project", f="location"),
             ),
             #homepage("event", "irs")(
             #    MM("Events", c="event", f="event"),
             #    MM("Incident Reports", c="irs", f="ireport"),
             #)
         ]
+
+    # -------------------------------------------------------------------------
+    @classmethod
+    def menu_dashboard(cls):
+        """ Dashboard Menu (at bottom of page) """
+
+        DB = S3DashBoardMenuLayout
+        request = current.request
+
+        if request.controller == "vol":
+            dashboard = DB()(
+                DB("VOLUNTEERS",
+                    c="vol",
+                    image = "graphic_staff_wide.png",
+                    title = "Volunteers")(
+                    DB("Manage Volunteer Data", f="volunteer"),
+                    DB("Manage Teams Data", f="group"),
+                ),
+                DB("CATALOGS",
+                    c="hrm",
+                    image="graphic_catalogue.png",
+                    title="Catalogs")(
+                    DB("Certificates", f="certificate"),
+                    DB("Training Courses", f="course"),
+                    #DB("Skills", f="skill"),
+                    DB("Job Roles", f="job_role")
+                ))
+        elif request.controller in ("hrm", "org"):
+            dashboard = DB()(
+                DB("STAFF",
+                    c="hrm",
+                    image = "graphic_staff_wide.png",
+                    title = "Staff")(
+                    DB("Manage Staff Data", f="staff"),
+                    #DB("Manage Teams Data", f="group"),
+                ),
+                DB("OFFICES",
+                    c="org",
+                    image = "graphic_office.png",
+                    title = "Offices")(
+                    DB("Manage Offices Data", f="office"),
+                    DB("Manage Organisations Data", f="organisation"),
+                ),
+                DB("CATALOGS",
+                    c="hrm",
+                    image="graphic_catalogue.png",
+                    title="Catalogs")(
+                    DB("Certificates", f="certificate"),
+                    DB("Training Courses", f="course"),
+                    #DB("Skills", f="skill"),
+                    DB("Job Roles", f="job_role")
+                ))
+
+        elif request.controller == "default" and request.function == "index":
+
+            dashboard = DB(_id="dashboard")(
+                DB("Staff", c="hrm", f="staff", m="search",
+                   image = "graphic_staff.png",
+                   title = "Staff",
+                   text = "Add new and manage existing staff."),
+                DB("Volunteers", c="vol", f="volunteer", m="search",
+                   image = "graphic_volunteers.png",
+                   title = "Volunteers",
+                   text = "Add new and manage existing volunteers."),
+                DB("Members", c="member", f="index",
+                   image = "graphic_members.png",
+                   title = "Members",
+                   text = "Add new and manage existing members."),
+                DB("Warehouses", c="inv", f="index",
+                   image = "graphic_warehouse.png",
+                   title = "Warehouses",
+                   text = "Stocks and relief items."),
+                DB("Assets", c="asset", f="index",
+                   image = "graphic_assets.png",
+                   title = "Assests",
+                   text = "Manage office inventories and assets."),
+                DB("Assessments", c="survey", f="index",
+                   image = "graphic_assessments.png",
+                   title = "Assessments",
+                   text = "Design, deploy & analyze surveys."),
+                DB("Projects", c="project", f="index",
+                   image = "graphic_tools.png",
+                   title = "Projects",
+                   text = "Tracking and analysis of Projects and Activities.")
+            )
+
+        else:
+            dashboard = None
+
+        return dashboard
 
     # -------------------------------------------------------------------------
     @classmethod
@@ -166,16 +257,9 @@ class S3OptionsMenu(default.S3OptionsMenu):
         return M()(
                     M("Staff", c="hrm", f=("staff", "person"),
                       check=manager_mode)(
-                        M("New Staff Member", m="create"),
+                        M("New", m="create"),
                         M("List All"),
                         M("Search", m="search"),
-                        M("Report", m="report",
-                          vars=Storage(rows="course",
-                                       cols="L1",
-                                       fact="person_id",
-                                       aggregate="count")),
-                        M("Report Expiring Contracts",
-                          vars=dict(expiring=1)),
                         M("Import", f="person", m="import",
                           vars=staff, p="create"),
                     ),
@@ -216,12 +300,14 @@ class S3OptionsMenu(default.S3OptionsMenu):
                         M("Search", m="search"),
                         M("Search Training Participants", f="training",
                           m="search"),
-                        M("Training Report", f="training", m="report",
-                          vars=dict(rows="training_event_id$course_id",
-                                    cols="month",
-                                    fact="person_id",
-                                    aggregate="count")),
                         M("Import Participant List", f="training", m="import"),
+                    ),
+                    M("Reports", c="hrm", f="staff", m="report",
+                      check=manager_mode)(
+                        M("Staff Report", m="report"),
+                        M("Expiring Staff Contracts Report",
+                          vars=dict(expiring=1)),
+                        M("Training Report", f="training", m="report"),
                     ),
                     M("Training Course Catalog", c="hrm", f="course",
                       check=manager_mode)(
@@ -249,8 +335,6 @@ class S3OptionsMenu(default.S3OptionsMenu):
     def irs(self):
         """ IRS Incident Reporting """
 
-        s3_has_role = current.auth.s3_has_role
-
         return M()(
                     M("Events", c="event", f="event")(
                         M("New", m="create"),
@@ -262,16 +346,14 @@ class S3OptionsMenu(default.S3OptionsMenu):
                         M("Open Incidents", vars={"open":1}),
                         M("Timeline", args="timeline"),
                         M("Search", m="search"),
-                        M("Report", m="report",
-                          vars=dict(rows="L1",
-                                    cols="category",
-                                    fact="datetime",
-                                    aggregate="count"))
                     ),
                     M("Incident Categories", c="irs", f="icategory",
-                      check=s3_has_role(ADMIN))(
+                      check=current.auth.s3_has_role(ADMIN))(
                         M("New", m="create"),
                         M("List All"),
+                    ),
+                    M("Reports", c="irs", f="ireport",  m="report")(
+                        M("Incident Reports"),
                     ),
                 )
 

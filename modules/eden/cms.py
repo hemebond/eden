@@ -33,9 +33,8 @@ __all__ = ["S3ContentModel",
 
 from gluon import *
 from gluon.storage import Storage
-from gluon.contrib.simplejson.ordered_dict import OrderedDict
 from ..s3 import *
-from layouts import *
+from layouts import S3AddResourceLink
 
 # =============================================================================
 class S3ContentModel(S3Model):
@@ -52,15 +51,10 @@ class S3ContentModel(S3Model):
 
         T = current.T
         db = current.db
-        s3 = current.response.s3
-
         add_component = self.add_component
-        comments = s3.comments
         configure = self.configure
-        crud_strings = s3.crud_strings
+        crud_strings = current.response.s3.crud_strings
         define_table = self.define_table
-        meta_fields = s3.meta_fields
-        roles_permitted = s3.roles_permitted
 
         # ---------------------------------------------------------------------
         # Series
@@ -69,22 +63,21 @@ class S3ContentModel(S3Model):
 
         tablename = "cms_series"
         table = define_table(tablename,
-                             Field("name",
-                                   notnull=True,
-                                   label = T("Name")),
+                             Field("name", notnull=True,
+                                   label=T("Name")),
                              Field("avatar", "boolean",
-                                   default = False,
+                                   default=False,
                                    label=T("Show author picture?")),
                              Field("replies", "boolean",
-                                   default = False,
+                                   default=False,
                                    label=T("Comments permitted?")),
-                             comments(),
+                             s3_comments(),
                              # Multiple Roles (@ToDo: Implement the restriction)
-                             roles_permitted(
-                                             readable = False,
-                                             writable = False
-                                            ),
-                             *meta_fields())
+                             s3_roles_permitted(
+                                                readable = False,
+                                                writable = False
+                                                ),
+                             *s3_meta_fields())
 
         # CRUD Strings
         ADD_SERIES = T("Add Series")
@@ -104,10 +97,12 @@ class S3ContentModel(S3Model):
             msg_list_empty = T("No series currently defined"))
 
         # Reusable field
-        series_id = S3ReusableField("series_id", db.cms_series,
+        series_id = S3ReusableField("series_id", table,
                                     readable=False,
                                     writable=False,
-                                    requires = IS_NULL_OR(IS_ONE_OF(db, "cms_series.id", "%(name)s")),
+                                    requires = IS_NULL_OR(
+                                                IS_ONE_OF(db, "cms_series.id",
+                                                          "%(name)s")),
                                     ondelete = "CASCADE")
 
         # Resource Configuration
@@ -135,34 +130,36 @@ class S3ContentModel(S3Model):
         table = define_table(tablename,
                              series_id(),
                              Field("module",
-                                   requires = IS_NULL_OR(IS_IN_SET_LAZY(lambda: \
+                                   requires=IS_NULL_OR(
+                                                IS_IN_SET_LAZY(lambda: \
                                             sort_dict_by_values(modules))),
-                                   comment = T("If you specify a module then this will be used as the text in that module's index page"),
-                                   label = T("Module")),
-                             Field("name",
-                                   notnull=True,
-                                   comment = T("This isn't visible to the published site, it's just to help the Admin identify the text"),
-                                   label = T("Title")),
-                             Field("body", "text",
-                                   notnull=True,
+                                   comment=T("If you specify a module then this will be used as the text in that module's index page"),
+                                   label=T("Module")),
+                             Field("name", notnull=True,
+                                   comment=T("This isn't visible to the published site, but is used to allow menu items to point to the page"),
+                                   label=T("Name")),
+                             Field("title",
+                                   comment=T("The title of the page, as seen in the browser (optional)"),
+                                   label=T("Title")),
+                             Field("body", "text", notnull=True,
                                    widget = s3_richtext_widget,
-                                   label = T("Body")),
+                                   label=T("Body")),
                              Field("avatar", "boolean",
-                                   default = False,
+                                   default=False,
                                    label=T("Show author picture?")),
                              Field("replies", "boolean",
-                                   default = False,
+                                   default=False,
                                    label=T("Comments permitted?")),
                              #Field("published", "boolean",
-                             #      default = True,
+                             #      default=True,
                              #      label=T("Published")),
-                             comments(),
+                             s3_comments(),
                              # Multiple Roles (@ToDo: Implement the restriction)
-                             roles_permitted(
-                                             readable = False,
-                                             writable = False
-                                            ),
-                             *meta_fields())
+                             s3_roles_permitted(
+                                                readable = False,
+                                                writable = False
+                                                ),
+                             *s3_meta_fields())
 
         # CRUD Strings
         ADD_POST = T("Add Post")
@@ -182,10 +179,12 @@ class S3ContentModel(S3Model):
             msg_list_empty = T("No posts currently defined"))
 
         # Reusable field
-        post_id = S3ReusableField("post_id", db.cms_post,
+        post_id = S3ReusableField("post_id", table,
                                   label = T("Post"),
                                   sortby="name",
-                                  requires = IS_NULL_OR(IS_ONE_OF(db, "cms_post.id", "%(name)s")),
+                                  requires = IS_NULL_OR(
+                                                IS_ONE_OF(db, "cms_post.id",
+                                                          "%(name)s")),
                                   represent = lambda id, row=None: \
                                                 (id and [db.cms_post[id].name] or [NONE])[0],
                                   comment = S3AddResourceLink(c="cms",
@@ -219,10 +218,9 @@ class S3ContentModel(S3Model):
                                                                     "cms_comment.id")),
                                    readable=False),
                              post_id(),
-                             Field("body", "text",
-                                   notnull=True,
+                             Field("body", "text", notnull=True,
                                    label = T("Comment")),
-                             *meta_fields())
+                             *s3_meta_fields())
 
         # Resource Configuration
         configure(tablename,
@@ -233,7 +231,7 @@ class S3ContentModel(S3Model):
                                ])
 
         # ---------------------------------------------------------------------
-        # Pass variables back to global scope (response.s3.*)
+        # Pass variables back to global scope (s3db.*)
         #
         return Storage()
 
@@ -246,12 +244,13 @@ class S3ContentModel(S3Model):
 
         vars = form.vars
 
-        table = current.s3db.cms_post
+        db = current.db
+        table = db.cms_post
         query = (table.series_id == vars.id)
-        current.db(query).update(avatar = vars.avatar,
-                                 replies = vars.replies,
-                                 roles_permitted = vars.roles_permitted,
-                                 )
+        db(query).update(avatar = vars.avatar,
+                         replies = vars.replies,
+                         roles_permitted = vars.roles_permitted,
+                         )
 
         return
 
@@ -266,10 +265,11 @@ class S3ContentModel(S3Model):
         module = vars.get("module", None)
         if module:
             # Ensure that no other record is set as the one for this module
-            table = current.s3db.cms_post
+            db = current.db
+            table = db.cms_post
             query = (table.module == module) & \
                     (table.id != vars.id)
-            current.db(query).update(module=None)
+            db(query).update(module=None)
 
         return
 

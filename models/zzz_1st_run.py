@@ -37,6 +37,7 @@ if len(pop_list) > 0:
                 "System Administrator - can access & make changes to any data",
                 uid=sysroles.ADMIN,
                 system=True, protected=True)
+
     authenticated = create_role("Authenticated",
                                 "Authenticated - all logged-in users",
                                 # Authenticated users can see the Map
@@ -57,57 +58,21 @@ if len(pop_list) > 0:
                                 dict(c="msg", f="search", uacl=acl.READ),
                                 # Authenticated  users can see the Supply Catalogue
                                 dict(c="supply", uacl=acl.READ|acl.CREATE, oacl=default_oacl),
+                                # HRM access is controlled to just HR Staff, except for:
+                                # Access to your own record
+                                # - requires security policy 4+
+                                dict(c="hrm", uacl=acl.NONE, oacl=acl.READ|acl.UPDATE),
+                                dict(c="hrm", f="staff", uacl=acl.NONE, oacl=acl.NONE),
+                                dict(c="hrm", f="volunteer", uacl=acl.NONE, oacl=acl.NONE),
+                                dict(c="hrm", f="person", uacl=acl.NONE, oacl=acl.READ|acl.UPDATE),
                                 uid=sysroles.AUTHENTICATED,
                                 protected=True)
-    # Authenticated users:
-    # Have access to all Orgs, Hospitals, Shelters
-    update_acls(authenticated,
-                dict(c="org", uacl=acl.READ|acl.CREATE, oacl=default_oacl),
-                # Since we specify a Table ACL for Anonymous, we also need 1 for Authenticated
-                dict(t="org_organisation", uacl=acl.READ|acl.CREATE, oacl=default_oacl),
-                dict(c="hms", uacl=acl.READ|acl.CREATE, oacl=default_oacl),
-                dict(c="cr", uacl=acl.READ|acl.CREATE, oacl=default_oacl)
-                )
-
-    # If we don't have OrgAuth active, then Authenticated users:
-    # Have access to all Orgs, Sites & the Inventory & Requests thereof
-    update_acls(authenticated,
-                dict(c="asset", uacl=acl.READ|acl.CREATE, oacl=default_oacl),
-                dict(c="inv", uacl=acl.READ|acl.CREATE, oacl=default_oacl),
-                dict(c="req", uacl=acl.READ|acl.CREATE|acl.UPDATE, oacl=default_oacl),
-                # Allow authenticated users to view the Certificate Catalog
-                dict(t="hrm_certificate", uacl=acl.READ),
-                # HRM access is controlled to just HR Staff, except for:
-                # Access to your own record & to be able to search for Skills
-                # requires security policy 4+
-                dict(c="hrm", uacl=acl.NONE, oacl=acl.READ|acl.UPDATE),
-                dict(c="hrm", f="staff", uacl=acl.NONE, oacl=acl.NONE),
-                dict(c="hrm", f="volunteer", uacl=acl.NONE, oacl=acl.NONE),
-                dict(c="hrm", f="person", uacl=acl.NONE, oacl=acl.READ|acl.UPDATE),
-                dict(c="hrm", f="skill", uacl=acl.READ, oacl=acl.READ)
-                )
 
     create_role("Anonymous",
                 "Unauthenticated users",
-
-                # Defaults for Trunk
-                dict(c="org", uacl=acl.READ, oacl=default_oacl),
-                dict(c="project", uacl=acl.READ, oacl=default_oacl),
-                dict(c="cr", uacl=acl.READ, oacl=default_oacl),
-                dict(c="hms", uacl=acl.READ, oacl=default_oacl),
-                #dict(c="inv", uacl=acl.READ, oacl=default_oacl),
-                dict(c="supply", uacl=acl.READ, oacl=default_oacl),
-                dict(c="delphi", uacl=acl.READ, oacl=default_oacl),
-
                 # Allow unauthenticated users to view the list of organisations
                 # so they can select an organisation when registering
                 dict(t="org_organisation", uacl=acl.READ, entity="any"),
-                # Allow unauthenticated users to view the Map
-                dict(c="gis", uacl=acl.READ, oacl=default_oacl),
-                # Allow unauthenticated users to cache Map feeds
-                dict(c="gis", f="cache_feed", uacl=acl.ALL, oacl=default_oacl),
-                # Allow unauthenticated users to view feature queries
-                dict(c="gis", f="feature_query", uacl=acl.NONE, oacl=default_oacl),
                 uid=sysroles.ANONYMOUS,
                 protected=True)
 
@@ -118,12 +83,12 @@ if len(pop_list) > 0:
                 system=True, protected=True)
 
     # MapAdmin
-    create_role("MapAdmin",
-                "MapAdmin - allowed access to edit the MapService Catalogue",
-                dict(c="gis", uacl=acl.ALL, oacl=acl.ALL),
-                dict(c="gis", f="location", uacl=acl.ALL, oacl=acl.ALL),
-                uid=sysroles.MAP_ADMIN,
-                system=True, protected=True)
+    map_admin = create_role("MapAdmin",
+                            "MapAdmin - allowed access to edit the MapService Catalogue",
+                            dict(c="gis", uacl=acl.ALL, oacl=acl.ALL),
+                            dict(c="gis", f="location", uacl=acl.ALL, oacl=acl.ALL),
+                            uid=sysroles.MAP_ADMIN,
+                            system=True, protected=True)
 
     # OrgAdmin (policies 6, 7 and 8)
     create_role("OrgAdmin",
@@ -166,6 +131,9 @@ if len(pop_list) > 0:
     # Import PrePopulate data
     #
 
+    # Override authorization
+    auth.override = True
+
     # Load all Models to ensure all DB tables present
     s3db.load_all_models()
 
@@ -175,13 +143,10 @@ if len(pop_list) > 0:
             table.insert(name = team, group_type = 5)
 
     # Synchronisation
-    table = db.sync_config
-    if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-       table.insert()
+    db.sync_config.insert() # Defaults are fine
 
     # Person Registry
     tablename = "pr_person"
-    table = db[tablename]
     # Add extra indexes on search fields
     # Should work for our 3 supported databases: sqlite, MySQL & PostgreSQL
     field = "first_name"
@@ -191,23 +156,18 @@ if len(pop_list) > 0:
     field = "last_name"
     db.executesql("CREATE INDEX %s__idx on %s(%s);" % (field, tablename, field))
 
-    # GIS Locations
-    tablename = "gis_location"
-    table = db[tablename]
-    if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-        # L0 Countries
-        import_file = os.path.join(request.folder,
-                                   "private",
-                                   "templates",
-                                   "default",
-                                   "countries.csv")
-        table.import_from_csv_file(open(import_file, "r")) #, id_map=True)
-        query = (db.auth_group.uuid == sysroles.MAP_ADMIN)
-        map_admin = db(query).select(db.auth_group.id,
-                                     limitby=(0, 1)).first().id
-        db(table.level == "L0").update(owned_by_group=map_admin)
+    # GIS
+    # L0 Countries
+    resource = s3mgr.define_resource("gis", "location")
+    stylesheet = os.path.join(request.folder, "static", "formats", "s3csv", "gis", "location.xsl")
+    import_file = os.path.join(request.folder, "private", "templates", "default", "countries.csv")
+    File = open(import_file, "r")
+    resource.import_xml(File, format="csv", stylesheet=stylesheet)
+    db(db.gis_location.level == "L0").update(owned_by_group=map_admin)
+    db.commit()
     # Add extra index on search field
     # Should work for our 3 supported databases: sqlite, MySQL & PostgreSQL
+    tablename = "gis_location"
     field = "name"
     db.executesql("CREATE INDEX %s__idx on %s(%s);" % (field, tablename, field))
 
@@ -215,41 +175,25 @@ if len(pop_list) > 0:
     if settings.has_module("msg"):
         # To read inbound email, set username (email address), password, etc.
         # here. Insert multiple records for multiple email sources.
-        table = db.msg_inbound_email_settings
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert(server = "imap.gmail.com",
-                         protocol = "imap",
-                         use_ssl = True,
-                         port = 993,
-                         username = "example-username",
-                         password = "password",
-                         delete_from_server = False
-            )
+        db.msg_inbound_email_settings.insert(server = "imap.gmail.com",
+                                             protocol = "imap",
+                                             use_ssl = True,
+                                             port = 993,
+                                             username = "example-username",
+                                             password = "password",
+                                             delete_from_server = False
+                                            )
         # Need entries for the Settings/1/Update URLs to work
-        table = db.msg_setting
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert( outgoing_sms_handler = "WEB_API" )
-        table = db.msg_modem_settings
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert( modem_baud = 115200 )
-        table = db.msg_api_settings
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert( to_variable = "to" )
-        table = db.msg_smtp_to_sms_settings
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert( address="changeme" )
-        table = db.msg_tropo_settings
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert( token_messaging = "" )
-        table = db.msg_twitter_settings
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert( pin = "" )
+        db.msg_setting.insert( outgoing_sms_handler = "WEB_API" )
+        db.msg_modem_settings.insert( modem_baud = 115200 )
+        db.msg_api_settings.insert( to_variable = "to" )
+        db.msg_smtp_to_sms_settings.insert( address="changeme" )
+        db.msg_tropo_settings.insert( token_messaging = "" )
+        db.msg_twitter_settings.insert( pin = "" )
 
     # Budget Module
     if settings.has_module("budget"):
-        table = db.budget_parameter
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert() # Defaults are fine
+        db.budget_parameter.insert() # Defaults are fine
 
     # Climate Module
     if settings.has_module("climate"):
@@ -259,21 +203,17 @@ if len(pop_list) > 0:
     if settings.has_module("irs"):
         # Categories visible to ends-users by default
         table = db.irs_icategory
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert(code = "flood")
-            table.insert(code = "geophysical.landslide")
-            table.insert(code = "roadway.bridgeClosure")
-            table.insert(code = "roadway.roadwayClosure")
-            table.insert(code = "other.buildingCollapsed")
-            table.insert(code = "other.peopleTrapped")
-            table.insert(code = "other.powerFailure")
+        table.insert(code = "flood")
+        table.insert(code = "geophysical.landslide")
+        table.insert(code = "roadway.bridgeClosure")
+        table.insert(code = "roadway.roadwayClosure")
+        table.insert(code = "other.buildingCollapsed")
+        table.insert(code = "other.peopleTrapped")
+        table.insert(code = "other.powerFailure")
 
     # Supply Module
     if settings.has_module("supply"):
-        tablename = "supply_catalog"
-        table = db[tablename]
-        if not db(table.id > 0).select(table.id, limitby=(0, 1)).first():
-            table.insert(name = settings.get_supply_catalog_default() )
+        db.supply_catalog.insert(name = settings.get_supply_catalog_default() )
 
     # Ensure DB population committed when running through shell
     db.commit()
@@ -286,19 +226,16 @@ if len(pop_list) > 0:
     bi = s3base.S3BulkImporter()
 
     s3.import_role = bi.import_role
-    
-    # Override authorization
-    auth.override = True
 
     # Disable table protection
     protected = s3mgr.PROTECTED
     s3mgr.PROTECTED = []
 
     # Additional settings for user table imports:
-    s3mgr.configure("auth_user",
+    s3db.configure("auth_user",
                     onaccept = lambda form: \
                         auth.s3_link_to_person(user=form.vars))
-    s3mgr.model.add_component("auth_membership", auth_user="user_id")
+    s3db.add_component("auth_membership", auth_user="user_id")
 
     # Allow population via shell scripts
     if not request.env.request_method:
@@ -319,14 +256,7 @@ if len(pop_list) > 0:
             if os.path.exists(path):
                 bi.perform_tasks(path)
             else:
-                path = os.path.join(request.folder,
-                                    "private",
-                                    "templates",
-                                    pop_setting)
-                if os.path.exists(path):
-                    bi.perform_tasks(path)
-                else:
-                    print >> sys.stderr, "Unable to install data %s no valid directory found" % pop_setting
+                print >> sys.stderr, "Unable to install data %s no valid directory found" % pop_setting
         elif pop_setting == 1:
             # Populate with the default data
             path = os.path.join(request.folder,

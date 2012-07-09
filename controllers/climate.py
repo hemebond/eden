@@ -40,13 +40,14 @@ def index():
     else:
         print_tool = {}
 
-    if request.vars.get("zoom", None) is not None:
-        zoom = int(request.vars["zoom"])
+    vars = request.vars
+    if vars.get("zoom", None) is not None:
+        zoom = int(vars["zoom"])
     else:
         zoom = 7
 
-    if request.vars.get("coords", None) is not None:
-        lon, lat = map(float, request.vars["coords"].split(","))
+    if vars.get("coords", None) is not None:
+        lon, lat = map(float, vars["coords"].split(","))
     else:
         lon = 84.1
         lat = 28.5
@@ -55,12 +56,12 @@ def index():
         lon = lon,
         lat = lat,
         zoom = zoom,
-        toolbar = request.vars.get("display_mode", None) != "print",
+        toolbar = vars.get("display_mode", None) != "print",
         googleEarth = True,
         wms_browser = wms_browser, # dict
         plugins = [
             _map_plugin(
-                **request.vars
+                **vars
             )
         ]
     )
@@ -97,7 +98,6 @@ def climate_overlay_data():
     if errors:
         raise HTTP(400, "<br />".join(errors))
     else:
-        import gluon.contrib.simplejson as json
         try:
             data_path = _map_plugin().get_overlay_data(**arguments)
         # only DSL exception types should be raised here
@@ -171,7 +171,6 @@ def _climate_chart(content_type):
     """
 
     kwargs = dict(request.vars)
-    import gluon.contrib.simplejson as json
     specs = json.loads(kwargs.pop("spec"))
     def list_of(converter):
         def convert_list(choices):
@@ -331,13 +330,13 @@ def purchase():
     def rheader(r):
         record = r.record
         if record and record.paid:
-            # these are the parameters to download the data export file
+            # These are the parameters to download the data export file
             # see models/climate.py for more details
             return A("Download this data",
-                     _href=URL(c="download_purchased_data"
+                     _href=URL(c="download_purchased_data",
                                vars={"purchase_id": record.id}),
                      _style="border:1px solid black; padding:0.5em; background-color:#0F0; color:black; text-decoration:none;"
-            )
+                    )
         else:
             return None
 

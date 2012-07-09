@@ -13,7 +13,7 @@ def index():
        Module's Home Page
     """
 
-    module_name = deployment_settings.modules[module].name_nice
+    module_name = settings.modules[module].name_nice
     response.title = module_name
 
     # Include an embedded Map on the index page
@@ -23,23 +23,23 @@ def index():
                      maximizable=False)
 
     # Code to go fullscreen
-    response.s3.jquery_ready.append("""
-$('#gis_fullscreen_map-btn').click( function(evt) {
-    if (navigator.appVersion.indexOf("MSIE") != -1) {
-        // IE (even 9) doesn't like the dynamic full-screen, so simply do a page refresh for now
-    } else {
-        // Remove components from embedded Map's containers without destroying their contents
-        S3.gis.mapWestPanelContainer.removeAll(false);
-        S3.gis.mapPanelContainer.removeAll(false);
-        S3.gis.mapWin.items.items = [];
-        S3.gis.mapWin.doLayout();
-        S3.gis.mapWin.destroy();
-        // Add a full-screen window which will inherit these components
-        addMapWindow();
-        evt.preventDefault();
-    }
-});""")
-                     
+    # IE (even 9) doesn't like the dynamic full-screen, so simply do a page refresh for now
+    # Remove components from embedded Map's containers without destroying their contents
+    # Add a full-screen window which will inherit these components
+    s3.jquery_ready.append(
+'''$('#gis_fullscreen_map-btn').click(function(evt){
+ if (navigator.appVersion.indexOf("MSIE")!=-1){
+ }else{
+ S3.gis.mapWestPanelContainer.removeAll(false)
+ S3.gis.mapPanelContainer.removeAll(false)
+ S3.gis.mapWin.items.items=[]
+ S3.gis.mapWin.doLayout()
+ S3.gis.mapWin.destroy()
+ addMapWindow()
+ evt.preventDefault()
+ }
+})''')
+
     return dict(map=map)
 
 # =============================================================================
@@ -82,10 +82,10 @@ def define_map(window=False, toolbar=False, closable=True, maximizable=True, con
         wms_browser = None
 
     # 'normal', 'mgrs' or 'off'
-    mouse_position = deployment_settings.get_gis_mouse_position()
+    mouse_position = settings.get_gis_mouse_position()
 
     # http://eden.sahanafoundation.org/wiki/BluePrintGISPrinting
-    print_service = deployment_settings.get_gis_print_service()
+    print_service = settings.get_gis_print_service()
     if print_service:
         print_tool = {"url": print_service}
     else:
@@ -110,7 +110,7 @@ def define_map(window=False, toolbar=False, closable=True, maximizable=True, con
 def location():
     """ RESTful CRUD controller for Locations """
 
-    tablename = "%s_%s" % (module, resourcename)
+    tablename = "gis_location"
     table = s3db[tablename]
 
     # Location Search Method
@@ -164,20 +164,44 @@ def location():
         )
     )
 
-    s3mgr.configure(tablename,
+    class S3LocationVirtualFields:
+        def population(self):
+            """
+                Used by the Report
+            """
+            table = current.s3db.gis_location_tag
+            query = (table.location_id == self.gis_location.id) & \
+                    (table.tag == "population")
+            location = current.db(query).select(table.value,
+                                                limitby=(0, 1)).first()
+            if location:
+                return int(location.value)
+            else:
+                return None
+
+    table.virtualfields.append(S3LocationVirtualFields())
+    s3db.configure(tablename,
                     # Don't include Bulky Location Selector in List Views
                     listadd=False,
                     # Custom Search Method
                     search_method=gis_location_search,
-                    report_filter=gis_location_adv_search,
-                    report_rows = ["name"],
-                    report_cols = [],
-                    report_fact = ["population"],
-                    report_method=["sum"],
+                    report_options=Storage(
+                            search=gis_location_adv_search,
+                            rows=["name"],
+                            cols=[],
+                            facts=[(T("Population"), "population")],
+                            defaults=Storage(
+                                            rows="name",
+                                            cols=None,
+                                            fact=(T("Population"), "population"),
+                                            aggregate="sum",
+                                            totals=True
+                                            )
+                            ),
                     )
 
     # Custom Method
-    s3mgr.model.set_method("gis", "location", method="parents",
+    s3db.set_method("gis", "location", method="parents",
                            action=s3_gis_location_parents)
 
     # Pre-processor
@@ -197,55 +221,18 @@ def location():
                                     limitby=(0, 1)).first()
 
         # Restrict access to Polygons to just MapAdmins
-        if deployment_settings.get_security_map() and not s3_has_role(MAP_ADMIN):
-            table.code.writable = False
-            if r.method == "create":
-                table.code.readable = False
+        if settings.get_security_map() and not s3_has_role(MAP_ADMIN):
             table.gis_feature_type.writable = table.gis_feature_type.readable = False
             table.wkt.writable = table.wkt.readable = False
         elif r.interactive:
-            table.code.comment = DIV(_class="tooltip",
-                                     _title="%s|%s" % (T("Code"),
-                                                       T("For a country this would be the ISO2 code, for a Town, it would be the Airport Locode.")))
             table.wkt.comment = DIV(_class="stickytip",
                                     _title="WKT|%s %s%s %s%s" % (T("The"),
                                                                "<a href='http://en.wikipedia.org/wiki/Well-known_text' target=_blank>",
                                                                T("Well-Known Text"),
                                                                "</a>",
                                                                T("representation of the Polygon/Line.")))
-            table.members.comment = DIV(_class="tooltip",
-                      _title="%s|%s|%s|%s|%s" % (T("Members"),
-                                                 T("A location group is a set of locations (often, a set of administrative regions representing a combined area)."),
-                                                 T("Location groups may be used to filter what is shown on the map and in search results to only entities covered by locations in the group."),
-                                                 T("A location group can be used to define the extent of an affected area, if it does not fall within one administrative region."),
-                                                 T("Location groups can be used in the Regions menu.")))
-
-
-
-        if r.method == "update" and r.id:
-            # We don't allow converting a location group to non-group and
-            # vice versa. We also don't allow taking away all the members of
-            # a group -- setting "notnull" gets the "required" * displayed.
-            # Groups don't have parents. (This is all checked in onvalidation.)
-            # NB r.id is None for update.url
-            location = get_location_info()
-            if location.level == "GR":
-                table.level.writable = False
-                table.parent.readable = table.parent.writable = False
-                table.members.notnull = True
-                # Record that this is a group location. Since we're setting
-                # level to not writable, it won't be in either form.vars or
-                # request.vars. Saving it while we have it avoids another
-                # db access.
-                response.s3.location_is_group = True
-            else:
-                table.members.writable = table.members.readable = False
-                response.s3.location_is_group = False
 
         if r.interactive:
-            if not "group" in r.vars:
-                # Hide the Members List (a big download when many records are entered)
-                table.members.writable = table.members.readable = False
             # Don't show street address, postcode for hierarchy on read or update.
             if r.method != "create" and r.id:
                 try:
@@ -268,18 +255,10 @@ def location():
             else:
                 # Include 'Add Location' button
                 table.parent.comment = DIV(S3AddResourceLink(c="gis",
-                                                         f="location",
-                                                         vars=dict(child="parent")),
+                                                             f="location",
+                                                             vars=dict(child="parent")),
                                            parent_comment)
 
-            table.osm_id.comment = DIV(_class="stickytip",
-                                       _title="OpenStreetMap ID|%s%s%s" % (T("The"),
-                                                                           " <a href='http://openstreetmap.org' target=_blank>OpenStreetMap</a> ID. ",
-                                                                           T("If you know what the OSM ID of this location is then you can enter it here.")))
-            table.geonames_id.comment = DIV(_class="stickytip",
-                                            _title="Geonames ID|%s%s%s" % (T("The"),
-                                                                           " <a href='http://geonames.org' target=_blank>Geonames</a> ID. ",
-                                                                           T("If you know what the Geonames ID of this location is then you can enter it here.")))
             table.comments.comment = DIV(_class="tooltip",
                                          _title="%s|%s" % (T("Comments"),
                                                            T("Please use this field to record any additional information, such as Ushahidi instance IDs. Include a history of the record if it is updated.")))
@@ -347,7 +326,7 @@ def location():
             # Path field should be visible
             table.path.readable = True
         return True
-    response.s3.prep = lambda r, vars=vars: prep(r, vars)
+    s3.prep = lambda r, vars=vars: prep(r, vars)
 
     # Options
     _vars = request.vars
@@ -369,7 +348,7 @@ def location():
 
     if filters:
         from operator import __and__
-        response.s3.filter = reduce(__and__, filters)
+        s3.filter = reduce(__and__, filters)
 
     caller = _vars.get("caller", None)
     if caller:
@@ -385,16 +364,11 @@ def location():
 
             # Hide unnecessary rows
             table.level.readable = table.level.writable = False
-            table.geonames_id.readable = table.geonames_id.writable = False
-            table.osm_id.readable = table.osm_id.writable = False
-            table.source.readable = table.source.writable = False
-            table.url.readable = table.url.writable = False
 
     level = _vars.get("level", None)
     if level:
         # We've been called from the Location Selector widget
         table.addr_street.readable = table.addr_street.writable = False
-
 
     country = S3ReusableField("country", "string", length=2,
                               label = T("Country"),
@@ -404,7 +378,8 @@ def location():
                               represent = lambda code: \
                                     gis.get_country(code, key_type="code") or UNKNOWN_OPT)
 
-    output = s3_rest_controller(csv_extra_fields = [
+    output = s3_rest_controller(rheader=s3db.gis_rheader,
+                                csv_extra_fields = [
                                     dict(label="Country",
                                          field=country())
                                 ])
@@ -423,8 +398,7 @@ def s3_gis_location_parents(r, **attr):
         Return a list of Parents for a Location
     """
 
-    resource = r.resource
-    table = resource.table
+    table = r.resource.table
 
     # Check permission
     if not s3_has_permission("read", table):
@@ -469,17 +443,20 @@ def l0():
     try:
         record_id = request.args[0]
     except:
-        item = s3mgr.xml.json_message(False, 400, "Need to specify a record ID!")
+        item = current.xml.json_message(False, 400, "Need to specify a record ID!")
         raise HTTP(400, body=item)
 
     table = s3db.gis_location
+    ttable = s3db.gis_location_tag
     query = (table.id == record_id) & \
             (table.deleted == False) & \
-            (table.level == "L0")
+            (table.level == "L0") & \
+            (ttable.tag == "ISO2") & \
+            (ttable.location_id == table.id)
     record = db(query).select(table.id,
                               table.name,
                               # Code for the Geocoder lookup filter
-                              table.code,
+                              ttable.value,
                               # LatLon for Centering the Map
                               table.lon,
                               table.lat,
@@ -491,10 +468,16 @@ def l0():
                               cache = s3db.cache,
                               limitby=(0, 1)).first()
     if not record:
-        item = s3mgr.xml.json_message(False, 400, "Invalid ID!")
+        item = current.xml.json_message(False, 400, "Invalid ID!")
         raise HTTP(400, body=item)
 
     result = record.as_dict()
+    location_part = result["gis_location"]
+    for key in location_part:
+        result[key] = location_part[key]
+    del result["gis_location"]
+    result["code"] = result["gis_location_tag"]["value"]
+    del result["gis_location_tag"]
 
     # Provide the Location Hierarchy for this country
     location_hierarchy = gis.get_location_hierarchy(location=record_id)
@@ -654,7 +637,7 @@ def location_links():
     try:
         record_id = request.args[0]
     except:
-        item = s3mgr.xml.json_message(False, 400, "Need to specify a record ID!")
+        item = current.xml.json_message(False, 400, "Need to specify a record ID!")
         raise HTTP(400, body=item)
 
     try:
@@ -666,7 +649,7 @@ def location_links():
         query = deleted & query
         record = db(query).select(locations.id, limitby=(0, 1)).first().id
     except:
-        item = s3mgr.xml.json_message(False, 404, "Record not found!")
+        item = current.xml.json_message(False, 404, "Record not found!")
         raise HTTP(404, body=item)
 
     # Find all tables which link to the Locations table
@@ -737,14 +720,15 @@ def config():
     """ RESTful CRUD controller """
 
     # Custom Methods to enable/disable layers
-    s3mgr.model.set_method(module, resourcename,
-                           component_name="layer_entity",
-                           method="enable",
-                           action=enable_layer)
-    s3mgr.model.set_method(module, resourcename,
-                           component_name="layer_entity",
-                           method="disable",
-                           action=disable_layer)
+    set_method = s3db.set_method
+    set_method(module, resourcename,
+               component_name="layer_entity",
+               method="enable",
+               action=enable_layer)
+    set_method(module, resourcename,
+               component_name="layer_entity",
+               method="disable",
+               action=disable_layer)
 
     # Pre-process
     def prep(r):
@@ -758,7 +742,7 @@ def config():
                     # - if each field was readable & you clicked on it to make it editable (like RHoK pr_contact), that would solve this
                     pe_id = auth.user.pe_id
                     # For Lists
-                    response.s3.filter = (s3db.gis_config.pe_id == pe_id)
+                    s3.filter = (s3db.gis_config.pe_id == pe_id)
                     # For Create forms
                     field = r.table.pe_id
                     field.default = pe_id
@@ -838,7 +822,7 @@ def config():
                 r.table.pe_type.default = 1
 
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -851,7 +835,7 @@ def config():
                                         ltable.enabled)
                 # Show the enable button if the layer is not currently enabled
                 restrict = [str(row.layer_id) for row in rows if not row.enabled]
-                response.s3.actions.append(dict(label=str(T("Enable")),
+                s3.actions.append(dict(label=str(T("Enable")),
                                                 _class="action-btn",
                                                 url=URL(args=[r.id, "layer_entity", "[id]", "enable"]),
                                                 restrict = restrict
@@ -859,7 +843,7 @@ def config():
                                             )
                 # Show the disable button if the layer is not currently disabled
                 restrict = [str(row.layer_id) for row in rows if row.enabled]
-                response.s3.actions.append(dict(label=str(T("Disable")),
+                s3.actions.append(dict(label=str(T("Disable")),
                                                 _class="action-btn",
                                                 url=URL(args=[r.id, "layer_entity", "[id]", "disable"]),
                                                 restrict = restrict
@@ -903,7 +887,7 @@ def config():
                         s3db.gis_layer_config_onaccept(form)
 
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
     return output
@@ -997,7 +981,7 @@ def symbology():
                                                         )
 
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
     return output
@@ -1014,7 +998,7 @@ def marker():
                 table.height.readable = False
                 table.width.readable = False
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     return s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1022,7 +1006,7 @@ def marker():
 def projection():
     """ RESTful CRUD controller """
 
-    if deployment_settings.get_security_map() and not s3_has_role(MAP_ADMIN):
+    if settings.get_security_map() and not s3_has_role(MAP_ADMIN):
         auth.permission.fail()
 
     return s3_rest_controller()
@@ -1078,7 +1062,7 @@ def inject_enable(output):
 def layer_config():
     """ RESTful CRUD controller """
 
-    if deployment_settings.get_security_map() and not s3_has_role(MAP_ADMIN):
+    if settings.get_security_map() and not s3_has_role(MAP_ADMIN):
         auth.permission.fail()
 
     layer = request.get_vars.get("layer", None)
@@ -1095,13 +1079,13 @@ def layer_config():
 def layer_entity():
     """ RESTful CRUD controller """
 
-    if deployment_settings.get_security_map() and not s3_has_role(MAP_ADMIN):
+    if settings.get_security_map() and not s3_has_role(MAP_ADMIN):
         auth.permission.fail()
 
     # Custom Method
-    s3mgr.model.set_method(module, resourcename,
-                           method="disable",
-                           action=disable_layer)
+    s3db.set_method(module, resourcename,
+                    method="disable",
+                    action=disable_layer)
 
     def prep(r):
         if r.interactive:
@@ -1173,7 +1157,7 @@ def layer_entity():
                                                              not_filter_opts=[row.id for row in rows]
                                                             )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
     return output
@@ -1183,9 +1167,9 @@ def layer_feature():
     """ RESTful CRUD controller """
 
     # Custom Method
-    s3mgr.model.set_method(module, resourcename,
-                           method="disable",
-                           action=disable_layer)
+    s3db.set_method(module, resourcename,
+                    method="disable",
+                    action=disable_layer)
 
     # Pre-processor
     def prep(r):
@@ -1225,7 +1209,7 @@ def layer_feature():
                                                          not_filter_opts=[row.symbology_id for row in rows]
                                                         )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1235,7 +1219,7 @@ def layer_feature():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
     return output
@@ -1245,7 +1229,7 @@ def layer_openstreetmap():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "OpenStreetMap"
@@ -1288,7 +1272,7 @@ def layer_openstreetmap():
                                                          )
 
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1297,7 +1281,7 @@ def layer_openstreetmap():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1308,7 +1292,7 @@ def layer_bing():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "Bing"
@@ -1319,7 +1303,7 @@ def layer_bing():
         msg_record_created=LAYER_ADDED,
         msg_record_modified=LAYER_UPDATED)
 
-    s3mgr.configure(tablename,
+    s3db.configure(tablename,
                     deletable=False,
                     listadd=False)
 
@@ -1347,7 +1331,7 @@ def layer_bing():
                                                          )
 
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1356,7 +1340,7 @@ def layer_bing():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1367,7 +1351,7 @@ def layer_empty():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "Empty"
@@ -1378,7 +1362,7 @@ def layer_empty():
         msg_record_created=LAYER_ADDED,
         msg_record_modified=LAYER_UPDATED)
 
-    s3mgr.configure(tablename,
+    s3db.configure(tablename,
                     deletable=False,
                     listadd=False)
 
@@ -1406,7 +1390,7 @@ def layer_empty():
                                                          )
 
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1417,7 +1401,7 @@ def layer_google():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "Google"
@@ -1428,7 +1412,7 @@ def layer_google():
         msg_record_created=LAYER_ADDED,
         msg_record_modified=LAYER_UPDATED)
 
-    s3mgr.configure(tablename,
+    s3db.configure(tablename,
                     deletable=False,
                     listadd=False)
 
@@ -1455,7 +1439,7 @@ def layer_google():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1464,7 +1448,7 @@ def layer_google():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1475,7 +1459,7 @@ def layer_mgrs():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "MGRS"
@@ -1497,7 +1481,7 @@ def layer_mgrs():
         msg_record_deleted=LAYER_DELETED,
         msg_list_empty=NO_LAYERS)
 
-    s3mgr.configure(tablename, deletable=False, listadd=False)
+    s3db.configure(tablename, deletable=False, listadd=False)
 
     # Pre-processor
     def prep(r):
@@ -1522,7 +1506,7 @@ def layer_mgrs():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1533,7 +1517,7 @@ def layer_arcrest():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "ArcGIS REST"
@@ -1558,8 +1542,8 @@ def layer_arcrest():
         msg_list_empty=NO_LAYERS)
 
     # Custom Method
-    s3mgr.model.set_method(module, resourcename, method="enable",
-                           action=enable_layer)
+    s3db.set_method(module, resourcename, method="enable",
+                    action=enable_layer)
 
     # Pre-processor
     def prep(r):
@@ -1584,7 +1568,7 @@ def layer_arcrest():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1594,7 +1578,7 @@ def layer_arcrest():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1605,7 +1589,7 @@ def layer_geojson():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "GeoJSON"
@@ -1671,7 +1655,7 @@ def layer_geojson():
                                                              not_filter_opts=[row.symbology_id for row in rows]
                                                             )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1681,7 +1665,7 @@ def layer_geojson():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1692,7 +1676,7 @@ def layer_georss():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "GeoRSS"
@@ -1717,8 +1701,8 @@ def layer_georss():
         msg_list_empty=NO_LAYERS)
 
     # Custom Method
-    s3mgr.model.set_method(module, resourcename, method="enable",
-                           action=enable_layer)
+    s3db.set_method(module, resourcename, method="enable",
+                    action=enable_layer)
 
     # Pre-processor
     def prep(r):
@@ -1762,7 +1746,7 @@ def layer_georss():
                                                              not_filter_opts=[row.symbology_id for row in rows]
                                                             )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1772,7 +1756,7 @@ def layer_georss():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1783,7 +1767,7 @@ def layer_gpx():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # Model options
     # Needed in multiple controllers, so defined in Model
@@ -1833,7 +1817,7 @@ def layer_gpx():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1842,7 +1826,7 @@ def layer_gpx():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1853,7 +1837,7 @@ def layer_kml():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "KML"
@@ -1878,9 +1862,9 @@ def layer_kml():
         msg_list_empty=NO_LAYERS)
 
     # Custom Method
-    #s3mgr.model.set_method(module, resourcename,
-    #                       method="enable",
-    #                       action=enable_layer)
+    #s3db.set_method(module, resourcename,
+    #                method="enable",
+    #                action=enable_layer)
 
     # Pre-processor
     def prep(r):
@@ -1922,7 +1906,7 @@ def layer_kml():
                                                              not_filter_opts=[row.symbology_id for row in rows]
                                                             )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -1932,7 +1916,7 @@ def layer_kml():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -1943,7 +1927,7 @@ def layer_theme():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "Theme"
@@ -1968,9 +1952,9 @@ def layer_theme():
         msg_list_empty=NO_LAYERS)
 
     # Custom Method
-    #s3mgr.model.set_method(module, resourcename,
-    #                       method="enable",
-    #                       action=enable_layer)
+    #s3db.set_method(module, resourcename,
+    #                method="enable",
+    #                action=enable_layer)
 
     # Pre-processor
     def prep(r):
@@ -1998,7 +1982,7 @@ def layer_theme():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -2008,7 +1992,7 @@ def layer_theme():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -2030,7 +2014,7 @@ def layer_tms():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "TMS"
@@ -2055,8 +2039,8 @@ def layer_tms():
         msg_list_empty=NO_LAYERS)
 
     # Custom Method
-    s3mgr.model.set_method(module, resourcename,
-                           method="enable",
+    s3db.set_method(module, resourcename,
+                    method="enable",
                            action=enable_layer)
 
     # Pre-processor
@@ -2082,7 +2066,7 @@ def layer_tms():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -2092,7 +2076,7 @@ def layer_tms():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -2103,7 +2087,7 @@ def layer_wfs():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "WFS"
@@ -2150,7 +2134,7 @@ def layer_wfs():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -2160,7 +2144,7 @@ def layer_wfs():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -2171,7 +2155,7 @@ def layer_wms():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "WMS"
@@ -2196,7 +2180,7 @@ def layer_wms():
         msg_list_empty=NO_LAYERS)
 
     # Custom Method
-    s3mgr.model.set_method(module, resourcename,
+    s3db.set_method(module, resourcename,
                            method="enable",
                            action=enable_layer)
 
@@ -2220,7 +2204,7 @@ def layer_wms():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -2230,7 +2214,7 @@ def layer_wms():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -2241,7 +2225,7 @@ def layer_xyz():
     """ RESTful CRUD controller """
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "XYZ"
@@ -2266,7 +2250,7 @@ def layer_xyz():
         msg_list_empty=NO_LAYERS)
 
     # Custom Method
-    s3mgr.model.set_method(module, resourcename,
+    s3db.set_method(module, resourcename,
                            method="enable",
                            action=enable_layer)
 
@@ -2293,7 +2277,7 @@ def layer_xyz():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -2303,7 +2287,7 @@ def layer_xyz():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -2313,11 +2297,11 @@ def layer_xyz():
 def layer_js():
     """ RESTful CRUD controller """
 
-    if deployment_settings.get_security_map() and not s3_has_role(MAP_ADMIN):
+    if settings.get_security_map() and not s3_has_role(MAP_ADMIN):
         auth.permission.fail()
 
     tablename = "%s_%s" % (module, resourcename)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
 
     # CRUD Strings
     type = "JS"
@@ -2361,7 +2345,7 @@ def layer_js():
                                                          not_filter_opts=[row.config_id for row in rows]
                                                          )
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     # Post-processor
     def postp(r, output):
@@ -2370,7 +2354,7 @@ def layer_js():
                 # Inject checkbox to enable layer in default config
                 inject_enable(output)
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller(rheader=s3db.gis_rheader)
 
@@ -2411,7 +2395,7 @@ def cache_feed():
     resourcename = "cache"
 
     # Load Models
-    #s3mgr.load("gis_cache")
+    #s3db.table("gis_cache")
 
     #if kml:
         # Unzip & Follow Network Links
@@ -2452,7 +2436,7 @@ def feature_query():
     table = s3db.gis_feature_query
 
     # Filter out any records without LatLon
-    response.s3.filter = (table.lat != None) & (table.lon != None)
+    s3.filter = (table.lat != None) & (table.lon != None)
 
     # Parse the Request
     r = s3mgr.parse_request()
@@ -2482,7 +2466,7 @@ def display_feature():
     # Check user is authorised to access record
     if not s3_has_permission("read", table, feature_id):
         session.error = T("No access to this record!")
-        raise HTTP(401, body=s3mgr.xml.json_message(False, 401, session.error))
+        raise HTTP(401, body=current.xml.json_message(False, 401, session.error))
 
     feature = db(table.id == feature_id).select(table.id,
                                                 table.parent,
@@ -2493,8 +2477,8 @@ def display_feature():
 
     if not feature:
         session.error = T("Record not found!")
-        raise HTTP(404, body=s3mgr.xml.json_message(False, 404, session.error))
-    
+        raise HTTP(404, body=current.xml.json_message(False, 404, session.error))
+
     # Centre on Feature
     lat = feature.lat
     lon = feature.lon
@@ -2509,7 +2493,7 @@ def display_feature():
             lon = latlon["lon"]
         else:
             session.error = T("No location information defined!")
-            raise HTTP(404, body=s3mgr.xml.json_message(False, 404, session.error))
+            raise HTTP(404, body=current.xml.json_message(False, 404, session.error))
 
     # Default zoom +2 (same as a single zoom on a cluster)
     # config = gis.get_config()
@@ -2562,12 +2546,12 @@ def display_features():
         ok +=1
     if ok != 4:
         session.error = T("Insufficient vars: Need module, resource, jresource, instance")
-        raise HTTP(400, body=s3mgr.xml.json_message(False, 400, session.error))
+        raise HTTP(400, body=current.xml.json_message(False, 400, session.error))
 
     tablename = "%s_%s" % (res_module, resource)
-    s3mgr.load(tablename)
+    s3db.table(tablename)
     table = db[table]
-    component, pkey, fkey = s3mgr.model.get_component(table, jresource)
+    component, pkey, fkey = s3db.get_component(table, jresource)
     jtable = db[str(component.table)]
     query = (jtable[fkey] == table[pkey]) & (table.id == instance)
     # Filter out deleted
@@ -2575,7 +2559,7 @@ def display_features():
     query = query & deleted
     # Filter out inaccessible
     query2 = (ltable.id == jtable.location_id)
-    accessible = s3_accessible_query("read", ltable)
+    accessible = auth.s3_accessible_query("read", ltable)
     query2 = query2 & accessible
 
     features = db(query).select(ltable.ALL, left = [ltable.on(query2)])
@@ -2639,27 +2623,17 @@ def geocode_manual():
     # - Normal users do the Lat/Lons
     # - Special users do the Codes
     _filter = (table.lat == None)
-    response.s3.filter = (query & _filter)
+    s3.filter = (query & _filter)
 
     # Hide unnecessary fields
-    table.code.readable = table.code.writable = False # @ToDo: Role-dependent
     table.level.readable = table.level.writable = False
-    table.members.readable = table.members.writable = False
     table.gis_feature_type.readable = table.gis_feature_type.writable = False
     table.wkt.readable = table.wkt.writable = False
-    table.url.readable = table.url.writable = False
-    table.geonames_id.readable = table.geonames_id.writable = False
-    table.osm_id.readable = table.osm_id.writable = False
-    table.source.readable = table.source.writable = False
     table.comments.readable = table.comments.writable = False
 
     # Customise Labels for specific use-cases
     #table.name.label = T("Building Name") # Building Assessments-specific
     #table.parent.label = T("Suburb") # Christchurch-specific
-
-    # For Special users doing codes
-    #table.code.label = T("Property reference in the council system") # Christchurch-specific 'prupi'
-    #table.code2.label = T("Polygon reference of the rating unit") # Christchurch-specific 'gisratingid'
 
     # Allow prep to pass vars back to the controller
     vars = {}
@@ -2725,9 +2699,9 @@ def geocode_manual():
             # Pass the map back to the main controller
             vars.update(_map=_map)
         return True
-    response.s3.prep = lambda r, vars=vars: prep(r, vars)
+    s3.prep = lambda r, vars=vars: prep(r, vars)
 
-    s3mgr.configure(table._tablename,
+    s3db.configure(table._tablename,
                     listadd=False,
                     list_fields=["id",
                                  "name",
@@ -2764,14 +2738,14 @@ def geoexplorer():
     """
 
     # @ToDo: Optimise to a single query of table
-    bing_key = deployment_settings.get_gis_api_bing()
-    google_key = deployment_settings.get_gis_api_google()
-    yahoo_key = deployment_settings.get_gis_api_yahoo()
+    bing_key = settings.get_gis_api_bing()
+    google_key = settings.get_gis_api_google()
+    yahoo_key = settings.get_gis_api_yahoo()
 
     # http://eden.sahanafoundation.org/wiki/BluePrintGISPrinting
-    print_service = deployment_settings.get_gis_print_service()
+    print_service = settings.get_gis_print_service()
 
-    geoserver_url = deployment_settings.get_gis_geoserver_url()
+    geoserver_url = settings.get_gis_geoserver_url()
 
     response.title = "GeoExplorer"
     return dict(
@@ -3069,7 +3043,7 @@ def potlatch2():
             #zoom = config.zoom
             zoom = 14
 
-        site_name = deployment_settings.get_system_name_short()
+        site_name = settings.get_system_name_short()
 
         return dict(lat=lat, lon=lon, zoom=zoom,
                     gpx_url=gpx_url,
@@ -3133,7 +3107,7 @@ def proxy():
             url = request.vars.url
         else:
             session.error = T("Need a 'url' argument!")
-            raise HTTP(400, body=s3mgr.xml.json_message(False, 400, session.error))
+            raise HTTP(400, body=current.xml.json_message(False, 400, session.error))
 
     # Debian has no default timeout so connection can get stuck with dodgy servers
     socket.setdefaulttimeout(30)

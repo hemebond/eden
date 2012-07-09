@@ -49,7 +49,7 @@ def index():
         module_name = T("Person Registry")
 
     # Load Model
-    s3mgr.load("pr_address")
+    s3db.table("pr_address")
 
     def prep(r):
         if r.representation == "html":
@@ -58,7 +58,7 @@ def index():
             else:
                redirect(URL(f="person", args=request.args))
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     def postp(r, output):
         if isinstance(output, dict):
@@ -91,12 +91,12 @@ def index():
             else:
                 label = UPDATE
             linkto = r.resource.crud._linkto(r)("[id]")
-            response.s3.actions = [
+            s3.actions = [
                 dict(label=str(label), _class="action-btn", url=str(linkto))
             ]
         r.next = None
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
     output = s3_rest_controller("pr", "person")
     response.view = "pr/index.html"
@@ -109,14 +109,14 @@ def person():
     """ RESTful CRUD controller """
 
     # Enable this to allow migration of users between instances
-    #response.s3.filter = (s3db.pr_person.pe_id == s3db.pr_person_user.pe_id) & \
-                         #(s3db.auth_user.id == s3db.pr_person_user.user_id) & \
-                         #(s3db.auth_user.registration_key != "disabled")
+    #s3.filter = (s3db.pr_person.pe_id == s3db.pr_person_user.pe_id) & \
+                #(s3db.auth_user.id == s3db.pr_person_user.user_id) & \
+                #(s3db.auth_user.registration_key != "disabled")
 
     # Custom Method for Contacts
-    s3mgr.model.set_method(module, resourcename,
-                           method="contacts",
-                           action=s3db.pr_contacts)
+    s3db.set_method(module, resourcename,
+                    method="contacts",
+                    action=s3db.pr_contacts)
 
     def prep(r):
         if r.representation == "json" and \
@@ -134,10 +134,10 @@ def person():
 
             if r.component_name == "config":
                 _config = s3db.gis_config
-                response.s3.gis_config_form_setup()
+                s3db.gis_config_form_setup()
                 # Name will be generated from person's name.
                 _config.name.readable = _config.name.writable = False
-                # Hide region fields
+                # Hide Location
                 _config.region_location_id.readable = _config.region_location_id.writable = False
 
             elif r.component_name == "competency":
@@ -147,7 +147,7 @@ def person():
 
             #elif r.component_name == "pe_subscription":
             #    # Load all Tables
-            #    s3mgr.model.load_all_models()
+            #    s3db.load_all_models()
             #    db.pr_pe_subscription.resource.requires = IS_IN_SET(db.tables)
 
             elif r.id:
@@ -155,7 +155,7 @@ def person():
                 r.table.volunteer.writable = True
 
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     def postp(r, output):
         if r.component_name == "save_search":
@@ -173,40 +173,39 @@ def person():
             restrict_s = [str(row.id) for row in rows]
             rows = db(stable.subscribed == True).select(stable.id)
             restrict_u = [str(row.id) for row in rows]
-            response.s3.actions = \
-            response.s3.actions + [
-                                   dict(label=str(T("Load Search")),
-                                        _class="action-btn",
-                                        url=URL(f="load_search",
-                                                args=["[id]"]))
-                                   ]
+            s3.actions = s3.actions + [
+                                        dict(label=str(T("Load Search")),
+                                             _class="action-btn",
+                                             url=URL(f="load_search",
+                                                     args=["[id]"]))
+                                      ]
             vars = {}
             #vars["person.uid"] = r.uid
             vars["subscribe"] = "[id]"
-            response.s3.actions.append(dict(label=str(T("Subscribe")),
-                                            _class="action-btn",
-                                            url = URL(f = "person",
-                                                      args = [s3_logged_in_person(),
-                                                              "save_search"],
-                                                      vars = vars),
-                                            restrict = restrict_s)
-                                    )
+            s3.actions.append(dict(label=str(T("Subscribe")),
+                                   _class="action-btn",
+                                   url = URL(f = "person",
+                                             args = [s3_logged_in_person(),
+                                                     "save_search"],
+                                             vars = vars),
+                                   restrict = restrict_s)
+                             )
             var = {}
             #var["person.uid"] = r.uid
             var["unsubscribe"] = "[id]"
-            response.s3.actions.append(dict(label=str(T("Unsubscribe")),
-                                            _class="action-btn",
-                                            url = URL(f = "person",
-                                                      args = [s3_logged_in_person(),
-                                                              "save_search",],
-                                                      vars = var),
-                                            restrict = restrict_u)
-                                        )
+            s3.actions.append(dict(label=str(T("Unsubscribe")),
+                              _class="action-btn",
+                              url = URL(f = "person",
+                                        args = [s3_logged_in_person(),
+                                                "save_search",],
+                                        vars = var),
+                              restrict = restrict_u)
+                             )
 
         return output
-    response.s3.postp = postp
+    s3.postp = postp
 
-    s3mgr.configure("pr_group_membership",
+    s3db.configure("pr_group_membership",
                     list_fields=["id",
                                  "group_id",
                                  "group_head",
@@ -215,7 +214,7 @@ def person():
 
     # Basic tabs
     tabs = [(T("Basic Details"), None),
-            #(T("Address"), "address"),
+            (T("Address"), "address"),
             #(T("Contacts"), "contact"),
             (T("Contact Details"), "contacts"),
             (T("Images"), "image"),
@@ -233,7 +232,7 @@ def person():
                        (T("Subscription Details"), "subscription")]
     tabs.append((T("Map Settings"), "config"))
 
-    s3mgr.configure("pr_person", listadd=False, insertable=True)
+    s3db.configure("pr_person", listadd=False, insertable=True)
 
     output = s3_rest_controller(main="first_name",
                                 extra="last_name",
@@ -254,7 +253,7 @@ def address():
         person_id = request.get_vars.get("person", None)
         controller = request.get_vars.get("controller", None)
         if person_id and controller:
-            s3mgr.configure("pr_address",
+            s3db.configure("pr_address",
                             create_next=URL(c=controller,
                                             f="person",
                                             args=[person_id, "contacts"]),
@@ -269,7 +268,7 @@ def address():
                                          limitby=(0, 1)).first().pe_id
                 s3db.pr_address.pe_id.default = pe_id
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     output = s3_rest_controller()
     return output
@@ -285,7 +284,7 @@ def contact():
     def prep(r):
         person_id = request.get_vars.get("person", None)
         if person_id:
-            s3mgr.configure("pr_contact",
+            s3db.configure("pr_contact",
                             create_next=URL(f="person",
                                             args=[person_id, "contacts"]),
                             update_next=URL(f="person",
@@ -298,7 +297,7 @@ def contact():
                                          limitby=(0, 1)).first().pe_id
                 s3db.pr_contact.pe_id.default = pe_id
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     output = s3_rest_controller()
     return output
@@ -314,7 +313,7 @@ def contact_emergency():
     def prep(r):
         person_id = request.get_vars.get("person", None)
         if person_id:
-            s3mgr.configure("pr_contact_emergency",
+            s3db.configure("pr_contact_emergency",
                             create_next=URL(f="person",
                                             args=[person_id, "contacts"]),
                             update_next=URL(f="person",
@@ -327,7 +326,7 @@ def contact_emergency():
                                          limitby=(0, 1)).first().pe_id
                 s3db.pr_contact_emergency.pe_id.default = pe_id
         return True
-    response.s3.prep = prep
+    s3.prep = prep
 
     output = s3_rest_controller()
     return output
@@ -340,8 +339,8 @@ def person_search():
         - allows differential access permissions
     """
 
-    response.s3.prep = lambda r: r.representation == "json" and \
-                                 r.method == "search"
+    s3.prep = lambda r: r.representation == "json" and \
+                        r.method == "search"
     return s3_rest_controller(module, "person")
 
 # -----------------------------------------------------------------------------
@@ -351,9 +350,9 @@ def group():
     tablename = "pr_group"
     table = s3db[tablename]
 
-    response.s3.filter = (table.system == False) # do not show system groups
+    s3.filter = (table.system == False) # do not show system groups
 
-    s3mgr.configure("pr_group_membership",
+    s3db.configure("pr_group_membership",
                     list_fields=["id",
                                  "person_id",
                                  "group_head",
@@ -425,7 +424,7 @@ def pentity():
         - limited to just search.json for use in Autocompletes
     """
 
-    response.s3.prep = lambda r: r.representation in ("s3json", "json", "xml")
+    s3.prep = lambda r: r.representation in ("s3json", "json", "xml")
     return s3_rest_controller()
 
 # -----------------------------------------------------------------------------
@@ -450,7 +449,6 @@ def tooltip():
 
 # -----------------------------------------------------------------------------
 def person_duplicates():
-
     """ Handle De-duplication of People
 
         @todo: permissions, audit, update super entity, PEP8, optimization?
@@ -458,7 +456,6 @@ def person_duplicates():
         @todo: user accounts, subscriptions?
     """
 
-    # Shortcut
     persons = s3db.pr_person
 
     table_header = THEAD(TR(TH(T("Person 1")),
@@ -495,6 +492,8 @@ def person_duplicates():
                                                           persons.comments)
 
         # Calculate the match percentage using Jaro wrinkler Algorithm
+        jaro_winkler_distance_row = s3base.s3_jaro_winkler_distance_row
+        soundex = s3base.soundex
         count = 1
         i = 0
         for onePerson in records: #[:len(records)/2]:

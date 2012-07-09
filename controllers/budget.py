@@ -27,6 +27,10 @@ if not settings.has_module(module):
 # Load the models we depend on
 project_id = s3db.project_project_id
 
+s3_deletion_status = s3base.s3_deletion_status
+s3_timestamp = s3base.s3_timestamp
+s3_uid = s3base.s3_uid
+
 module = "budget"
 
 # Parameters
@@ -137,7 +141,7 @@ def item_cascade(form):
             # Update Budgets containing this Bundle (tbc)
     return
 
-s3mgr.configure(tablename,
+s3db.configure(tablename,
                 onaccept=item_cascade)
 
 # Kits
@@ -187,7 +191,7 @@ def kit_total(form):
         kit = form.vars.id
     kit_totals(kit)
 
-s3mgr.configure(tablename,
+s3db.configure(tablename,
                 onaccept=kit_total)
 
 # Kit<>Item Many2Many
@@ -263,7 +267,7 @@ def bundle_total(form):
         bundle = form.vars.id
     bundle_totals(bundle)
 
-s3mgr.configure(tablename,
+s3db.configure(tablename,
                 onaccept=bundle_total)
 
 # Bundle<>Kit Many2Many
@@ -309,7 +313,7 @@ table = db.define_table(tablename,
                         Field("name", length=128, notnull=True, unique=True),
                         Field("grade", notnull=True),
                         Field("salary", "integer", notnull=True),
-                        currency_type(),
+                        s3base.s3_currency(),
                         Field("travel", "integer", default=0),
                         # Shouldn't be grade-dependent, but purely location-dependent
                         #Field("subsistence", "double", default=0.00),
@@ -552,7 +556,7 @@ def parameter():
         title_update = T("Edit Parameters"),
         title_display = T("Parameters"))
 
-    s3mgr.configure(tablename, deletable=False)
+    s3db.configure(tablename, deletable=False)
     return s3_rest_controller()
 
 def item():
@@ -582,7 +586,7 @@ def item():
 
     response.s3.formats.pdf = URL(f="item_export_pdf")
 
-    s3mgr.configure(tablename,
+    s3db.configure(tablename,
                     main="code",
                     extra="description",
                     orderby=db.budget_item.category_type)
@@ -717,7 +721,7 @@ def kit():
     response.s3.formats.pdf = URL(f="kit_export_pdf")
     response.s3.formats.xls = URL(f="kit_export_xls")
     if len(request.args) == 2:
-        s3mgr.configure(tablename,
+        s3db.configure(tablename,
             update_next=URL(f="kit_item", args=request.args[1]))
 
     return s3_rest_controller(main="code")
@@ -1094,7 +1098,7 @@ def kit_export_csv():
         _table = module + "_" + resourcename
         table = db[_table]
         # Filter Search list to just those records which user can read
-        query = s3_accessible_query("read", table)
+        query = auth.s3_accessible_query("read", table)
         # Filter Search List to remove entries which have been deleted
         if "deleted" in table:
             query = ((table.deleted == False) | (table.deleted == None)) & query # includes None for backward compatability
@@ -1158,7 +1162,7 @@ def bundle():
         msg_list_empty = T("No Bundles currently registered"))
 
     if len(request.args) == 2:
-        s3mgr.configure(tablename,
+        s3db.configure(tablename,
             update_next=URL(f="bundle_kit_item", args=request.args[1]))
 
     return s3_rest_controller()
