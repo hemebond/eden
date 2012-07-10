@@ -51,7 +51,8 @@ class S3IRSModel(S3Model):
     names = ["irs_icategory",
              "irs_ireport",
              "irs_ireport_person",
-             "irs_ireport_id"]
+             "irs_ireport_id"
+             ]
 
     def model(self):
 
@@ -364,14 +365,16 @@ class S3IRSModel(S3Model):
                                  "comments",
                                 ]
                     ),
-                    S3SearchLocationHierarchyWidget(
+                    S3SearchOptionsWidget(
                         name="incident_search_L1",
                         field="L1",
+                        location_level="L1",
                         cols = 3,
                     ),
-                    S3SearchLocationHierarchyWidget(
+                    S3SearchOptionsWidget(
                         name="incident_search_L2",
                         field="L2",
+                        location_level="L2",
                         cols = 3,
                     ),
                     S3SearchOptionsWidget(
@@ -388,13 +391,12 @@ class S3IRSModel(S3Model):
                     ),
             ))
 
-        hierarchy = current.gis.get_location_hierarchy()
         report_fields = [
                          "category",
                          "datetime",
-                         (hierarchy["L1"], "L1"),
-                         (hierarchy["L2"], "L2"),
-                        ]
+                         "L1",
+                         "L2",
+                         ]
 
         # Resource Configuration
         configure(tablename,
@@ -402,14 +404,16 @@ class S3IRSModel(S3Model):
                   search_method = ireport_search,
                   report_options=Storage(
                       search=[
-                            S3SearchLocationHierarchyWidget(
+                            S3SearchOptionsWidget(
                                 name="incident_search_L1",
                                 field="L1",
+                                location_level="L1",
                                 cols = 3,
                             ),
-                            S3SearchLocationHierarchyWidget(
+                            S3SearchOptionsWidget(
                                 name="incident_search_L2",
                                 field="L2",
+                                location_level="L2",
                                 cols = 3,
                             ),
                             S3SearchOptionsWidget(

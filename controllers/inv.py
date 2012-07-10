@@ -86,10 +86,10 @@ def warehouse():
                     represent ="%(name)s",
                     cols = 3
                   ),
-                  s3base.S3SearchLocationHierarchyWidget(
+                  s3base.S3SearchOptionsWidget(
                     name="warehouse_search_location",
-                    comment=T("Search for warehouse by location."),
-                    represent ="%(name)s",
+                    field="location_id$L1",
+                    location_level="L1",
                     cols = 3
                   ),
                   s3base.S3SearchLocationWidget(
@@ -109,7 +109,7 @@ def warehouse():
                 # inc list_create (list_fields over-rides)
                 r.table.obsolete.writable = False
                 r.table.obsolete.readable = False
-                s3base.s3_address_hide(table)
+                #s3base.s3_address_hide(table)
                 # Process Base Location
                 #s3db.configure(table._tablename,
                 #                onaccept=address_onaccept)
