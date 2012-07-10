@@ -4026,7 +4026,7 @@ def hrm_rheader(r, tabs=[]):
 
                 # Already formatted as HTML
                 active = TD(record.active)
-                
+
                 row1 = TR(TH("%s:" % T("Programme")),
                           record.programme,
                           TH("%s:" % T("Active?")),
