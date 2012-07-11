@@ -271,18 +271,11 @@ class organisations():
             current.s3db.configure(resource.tablename,
                            list_fields = field_list)
 
-            #request = current.manager.parse_request(resource.prefix, resource.name)
-            from s3.s3rest import S3Request
-            request = S3Request(
-                 current.manager,
-                 resource.prefix,
-                 resource.name,
-                 args={"format": "aaData"},
-                 http="GET")
-            #request.method = "list"
-            #request.representation = "aadata"
-            #request.extension = "aadata"
-            return request()
+            #s3request = current.manager.parse_request(resource.prefix, resource.name, extension="aadata", http="GET")
+            s3request = current.manager.parse_request("org", "organisation", extension="aadata", http="GET")
+            print s3request
+            output = s3request()
+            return output
 
         view = path.join(request.folder, "private", "templates",
                          "DRRPP", "views", "organisations.html")
@@ -383,7 +376,7 @@ class organisations():
             "iDeferLoading": len(resource.load()),
             "bProcessing": True,
             "bServerSide": True,
-            "sAjaxSource": "/%s/default/index/organisations/?format=aaData&table=%s" % (current.request.application, name),
+            "sAjaxSource": "/%s/default/index/organisations/?table=%s" % (current.request.application, name),
             "aoColumnDefs": [
                 {
                     "bVisible": False,
