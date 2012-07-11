@@ -6,9 +6,9 @@ def index():
 
     def _regional():
         resource = s3mgr.define_resource("org", "organisation")
-        f = (s3base.S3FieldSelector("project.id") != None) & \
-            (s3base.S3FieldSelector("organisation_type_id$name").anyof(["Regional"]))
-        resource.add_filter(f)
+        #f = (s3base.S3FieldSelector("project.id") != None) & \
+        #    (s3base.S3FieldSelector("organisation_type_id$name").anyof(["Regional"]))
+        #resource.add_filter(f)
 
         field_list = [
             "id",
@@ -24,8 +24,8 @@ def index():
 
     def _groups():
         resource = s3mgr.define_resource("org", "organisation")
-        f = s3base.S3FieldSelector("project.id") != None
-        resource.add_filter(f)
+        #f = s3base.S3FieldSelector("project.id") != None
+        #resource.add_filter(f)
 
         field_list = [
             "id",
@@ -75,13 +75,8 @@ def _table(name, resource, field_list, limit=10, orderby="name"):
 
         if list_field.field != None:
             field = list_field.field
-            if field.type=="integer":
-                field_type = "numeric"
-            else:
-                field_type = "string"
         else:
             field = field_name
-            field_type = "string"
 
         if field_label is None:
             if list_field.field is not None:
@@ -92,8 +87,7 @@ def _table(name, resource, field_list, limit=10, orderby="name"):
         fields.append(field)
         cols.append({
             "name": field_name,
-            "label": field_label,
-            "type": field_type
+            "label": field_label
         })
 
         if orderby and str(orderby)==str(field_name):
@@ -102,45 +96,32 @@ def _table(name, resource, field_list, limit=10, orderby="name"):
     rows = resource.sqltable(fields=field_list,
                              limit=limit,
                              orderby=orderby,
-                             as_rows=True)
+                             as_page=True)
 
-    if rows:
-        table_rows = []
-        for row in rows:
-            table_row = []
-
-            for field in fields:
-                if isinstance(field, str):
-                    value = row[resource.tablename][field]
-                else:
-                    value = row[field]
-
-                table_row.append(value)
-
-            table_rows.append(table_row)
-    else:
-        table_rows = []
+    if rows is None:
+        rows = []
 
     options = json.dumps({
         "iDisplayLength": limit,
         "iDeferLoading": len(resource.load()),
         "bProcessing": True,
         "bServerSide": True,
-        "sAjaxSource": "index.aadata?table=%s" % name,
+        "sAjaxSource": "index.aaData?table=%s" % name,
         "aoColumnDefs": [
             {
                 "bVisible": False,
                 "aTargets": [0]
             }
         ],
-        "aoColumns": [{"sName": col["name"], "sType": col["type"]} for col in cols],
-		"sDom": '<frl><"dataTable_table"t><pi>',
+        "aoColumns": [{"sName": col["name"]} for col in cols],
+		"sDom": 'frltpi',
     })
 
     table = Storage(
         cols=cols,
-        rows=table_rows,
-        options=options
+        rows=rows,
+        options=options,
+        classes="dataTable display"
     )
 
     return table

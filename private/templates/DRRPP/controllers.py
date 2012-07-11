@@ -12,7 +12,7 @@ def INPUT_BTN(**attributes):
     """
 
     return SPAN(INPUT(_class = "button-right",
-                      **attributes), 
+                      **attributes),
                 _class = "button-left")
 
 # =============================================================================
@@ -47,17 +47,17 @@ class index():
                          _id="list_img"),
                      _href=URL(c="project", f="project", args=["list"]),
                      _title="Project List")
-        
+
         matrix_img = A(IMG(_src="/%s/static/themes/DRRPP/img/matrix_img.png" % appname,
                            _id="matrix_img"),
                        _href=URL(c="project", f="project", args=["matrix"]),
                        _title="Project Matrix Report")
-        
+
         map_img = A(IMG(_src="/%s/static/themes/DRRPP/img/map_img.png" % appname,
                         _id="map_img"),
                     _href=URL( f="project", args=["map"]),
                     _title="Project Map")
-        
+
         graph_img = A(IMG(_src="/%s/static/themes/DRRPP/img/graph_img.png" % appname,
                           _id="graph_img"),
                       _href=URL(c="project", f="project", args=["graphs"]),
@@ -66,22 +66,22 @@ class index():
         add_pipeline_project_link = URL(c="project",
                                         f="project",
                                         args=["create"],
-                                        vars=dict(set_status_id = "1"))    
-        add_current_project_link = URL(c="project", 
+                                        vars=dict(set_status_id = "1"))
+        add_current_project_link = URL(c="project",
                                        f="project",
                                        args=["create"],
                                        vars=dict(set_status_id = "2"))
-        add_completed_project_link = URL(c="project", 
+        add_completed_project_link = URL(c="project",
                                          f="project",
                                          args=["create"],
                                          vars=dict(set_status_id = "3"))
         add_offline_project_link = URL(c="static",
                                        f="DRR_Project_Portal_New_Project_Form.doc")
-        
-        add_framework_link = URL(c="project", 
+
+        add_framework_link = URL(c="project",
                                  f="framework",
                                  args=["create"])
-        
+
         project_captions = {
             1:"DRR projects which will be being implemented in the future, and for which funding has been secured in the Asia and Pacific region.",
             2:"DRR projects which are currently being implemented in one or more country in the Asia and Pacific region.",
@@ -93,8 +93,8 @@ class index():
                         _title=project_captions[2]),
                       A(DIV("ADD ", SPAN("PROPOSED", _class="white_text"), " PROJECT" ),
                         _href=add_pipeline_project_link,
-                        _title=project_captions[1]),                       
-                      A(DIV("ADD ", SPAN("COMPLETED", _class="white_text"), " PROJECT" ), 
+                        _title=project_captions[1]),
+                      A(DIV("ADD ", SPAN("COMPLETED", _class="white_text"), " PROJECT" ),
                         _href=add_completed_project_link,
                         _title=project_captions[3]),
                       A(DIV("ADD PROJECT OFFLINE" ),
@@ -116,7 +116,7 @@ class index():
         what_box = DIV(H1("WHAT CAN WE GET FROM THIS PORTAL?"),
                        UL("List of completed and ongoing DRR projects - by country, hazards, themes, partners and donors.",
                           "List of planned/proposed projects - better planning of future projects.",
-                          "Quick analysis - on number and types of completed and ongoing DRR projects", 
+                          "Quick analysis - on number and types of completed and ongoing DRR projects",
                           "Generate customised graphs and maps.",
                           "Know more on the DRR frameworks/action plans guiding the region - identify priority areas for providing support and implementation.",
                           "List of organisations implementing DRR projects at regional level.",
@@ -139,14 +139,14 @@ class index():
                                "Log in to add and edit your data",
                                "Link to this portal from your organisation website"
                                ),
-                            _id="how_start_box")    
-        
+                            _id="how_start_box")
+
         help = A(DIV("USER MANUAL",
                      _id="help_div"),
                  _href=URL(c="static", f="DRR_Portal_User_Manual.pdf"),
                  _target="_blank"
-                 )   
-        
+                 )
+
         tour = A(DIV("VIDEO TOUR",
                      _id="tour_div"),
                  _href=URL(c="default", f="index", args="video"),
@@ -189,7 +189,7 @@ class index():
                                                   vars={"status_id":1}))
                                      )
                                     )
-                             ),   
+                             ),
                           TR(TD(),
                              TABLE(TR(projects,
                                       A("Completed Projects",
@@ -198,19 +198,19 @@ class index():
                                                   vars={"status_id":3}))
                                      )
                                     )
-                             ),   
+                             ),
                           TR(frameworks,
                              A("Frameworks",
                                _href=URL(c="project", f="framework"))
-                            ),                                                                                                              
+                            ),
                          ),
                     _id="stats_div")
-        
+
         market = DIV(DIV(I("Under Development...")),
                      H2("DRR Project Marketplace"),
                      DIV("A platform to coordinate and collaborate on future DRR Projects."),
-                     _id = "market_div")  
-        
+                     _id = "market_div")
+
         auth = current.auth
         _table_user = auth.settings.table_user
         _table_user.language.label = T("Language")
@@ -220,7 +220,7 @@ class index():
         #_table_user.language.requires = IS_IN_SET(s3_languages)
         languages = current.deployment_settings.get_L10n_languages()
         _table_user.language.represent = lambda opt: \
-            languages.get(opt, current.messages.UNKNOWN_OPT)  
+            languages.get(opt, current.messages.UNKNOWN_OPT)
 
         request.args = ["login"]
         login = auth()
@@ -228,8 +228,8 @@ class index():
                                       _value = T("Login"))
 
         return dict(title = T("Home"),
-                    home_img = home_img,                
-                    add_div = add_div, 
+                    home_img = home_img,
+                    add_div = add_div,
                     login = login,
                     why_box = why_box,
                     home_page_img = home_page_img,
@@ -239,7 +239,7 @@ class index():
                     how_start_box = how_start_box,
                     tour = tour,
                     help = help,
-                    stats = stats, 
+                    stats = stats,
                     market = market,
                     list_img = list_img,
                     matrix_img = matrix_img,
@@ -247,4 +247,159 @@ class index():
                     graph_img = graph_img,
                     )
 
+
+class organisations():
+
+    def __call__(self):
+        T = current.T
+        request = current.request
+        appname = request.application
+        response = current.response
+
+        tables = []
+        table = request.vars.get("table", None)
+
+        if table is None or table=="regional":
+            resource, field_list = self._regional()
+            tables.append(self._table("regional", resource, field_list))
+
+        if table is None or table=="groups":
+            resource, field_list = self._groups()
+            tables.append(self._table("groups", resource, field_list))
+
+        if table is not None:
+            current.s3db.configure(resource.tablename,
+                           list_fields = field_list)
+
+            #request = current.manager.parse_request(resource.prefix, resource.name)
+            from s3.s3rest import S3Request
+            request = S3Request(
+                 current.manager,
+                 resource.prefix,
+                 resource.name,
+                 args={"format": "aaData"},
+                 http="GET")
+            #request.method = "list"
+            #request.representation = "aadata"
+            #request.extension = "aadata"
+            return request()
+
+        view = path.join(request.folder, "private", "templates",
+                         "DRRPP", "views", "organisations.html")
+        current.response.view = open(view, "rb")
+
+        return dict(tables=tables,
+                    appname=current.request.application)
+
+    @staticmethod
+    def _regional():
+        T = current.T
+
+        resource = current.manager.define_resource("org", "organisation")
+        #f = (s3base.S3FieldSelector("project.id") != None) & \
+        #    (s3base.S3FieldSelector("organisation_type_id$name").anyof(["Regional"]))
+        #resource.add_filter(f)
+
+        field_list = [
+            "id",
+            "name",
+            "acronym",
+            (T("Type"), "organisation_type_id$name"),
+            "website",
+            "region",
+            "year",
+            (T("Notes"), "comments")
+        ]
+        return (resource, field_list)
+
+    @staticmethod
+    def _groups():
+        T = current.T
+
+        resource = current.manager.define_resource("org", "organisation")
+        #f = s3base.S3FieldSelector("project.id") != None
+        #resource.add_filter(f)
+
+        field_list = [
+            "id",
+            "name",
+            "acronym",
+            (T("Type"), "organisation_type_id$name"),
+            "year",
+            #"address",
+            (T("Notes"), "comments")
+        ]
+        return (resource, field_list)
+
+    @staticmethod
+    def _table(name, resource, field_list, limit=10, orderby="name"):
+        from json import dumps
+        from s3 import S3FieldSelector
+        from gluon.storage import Storage
+        T = current.T
+
+        fields = []
+        cols = []
+        for field_name in field_list:
+            if isinstance(field_name, tuple):
+                field_label = field_name[0]
+                field_name = field_name[1]
+            else:
+                field_label = None
+
+            fs = S3FieldSelector(field_name)
+            list_field = fs.resolve(resource)
+
+            if list_field.field != None:
+                field = list_field.field
+            else:
+                field = field_name
+
+            if field_label is None:
+                if list_field.field is not None:
+                    field_label = field.label
+                else:
+                    field_label = " ".join([w.capitalize() for w in field_name.split(".")[-1].split("_")])
+
+            fields.append(field)
+            cols.append({
+                "name": field_name,
+                "label": field_label
+            })
+
+            if orderby and str(orderby)==str(field_name):
+                orderby=field
+
+        rows = resource.sqltable(fields=field_list,
+                                 limit=limit,
+                                 orderby=orderby,
+                                 as_page=True)
+
+        if rows is None:
+            rows = []
+
+        options = dumps({
+            "iDisplayLength": limit,
+            "iDeferLoading": len(resource.load()),
+            "bProcessing": True,
+            "bServerSide": True,
+            "sAjaxSource": "/%s/default/index/organisations/?format=aaData&table=%s" % (current.request.application, name),
+            "aoColumnDefs": [
+                {
+                    "bVisible": False,
+                    "aTargets": [0]
+                }
+            ],
+            "aoColumns": [{"sName": col["name"]} for col in cols],
+            "sDom": 'frltpi',
+        })
+
+        table = Storage(
+            cols=cols,
+            rows=rows,
+            options=options,
+            classes="dataTable display"
+        )
+
+        return table
 # END =========================================================================

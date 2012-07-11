@@ -13,7 +13,6 @@ S3.pluginDefaults = {
 	}
 };
 
-
 $(document).ready(function() {
 	$(".dataTable").each(function(index) {
 		var table = $(this);
