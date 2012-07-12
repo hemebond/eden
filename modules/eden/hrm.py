@@ -858,7 +858,7 @@ class S3HRJobModel(S3Model):
                                    #Field("hours_end", "time"),
                                    ##location_id(label=T("Available for Location"),
                                                ##requires=IS_ONE_OF(db, "gis_location.id",
-                                                                  ##gis_location_represent_row,
+                                                                  ##gis_location_represent,
                                                                   ##filterby="level",
                                                                   ### @ToDo Should this change per config?
                                                                   ##filter_opts=gis.region_level_keys,
@@ -3139,9 +3139,20 @@ def hrm_human_resource_onaccept(form):
         if not user.organisation_id:
             # Set the Organisation in the Profile, if not already set
             profile["organisation_id"] = record.organisation_id
-        if not user.site_id:
-            # Set the Site in the Profile, if not already set
-            profile["site_id"] = site_id
+            if not user.site_id:
+                # Set the Site in the Profile, if not already set
+                profile["site_id"] = site_id
+        else:
+            # How many active HR records does the user have?
+            query = (htable.deleted == False) & \
+                    (htable.status == 1) & \
+                    (htable.person_id == person_id)
+            rows = db(query).select(htable.id,
+                                    limitby=(0, 2))
+            if len(rows) == 1:
+                # We can safely update
+                profile["organisation_id"] = record.organisation_id
+                profile["site_id"] = record.site_id
         if profile:
             query = (utable.id == user.id)
             db(query).update(**profile)
@@ -3417,7 +3428,7 @@ def hrm_map_popup(r):
     return output
 
 # =============================================================================
-def hrm_service_record (r, **attr):
+def hrm_service_record(r, **attr):
     """
         Generate a Volunteer Service Record
     """
@@ -3657,6 +3668,7 @@ class HRMVirtualFields:
                     (table.person_id == person_id) & \
                     (table.certificate_id == ctable.id)
             certs = current.db(query).select(ctable.name,
+                                             distinct=True,
                                              orderby=ctable.name)
             if certs:
                 names = [cert.name for cert in certs]
@@ -3680,6 +3692,7 @@ class HRMVirtualFields:
                     (table.person_id == person_id) & \
                     (table.course_id == ctable.id)
             courses = current.db(query).select(ctable.name,
+                                               distinct=True,
                                                orderby=ctable.name)
             if courses:
                 names = [course.name for course in courses]
@@ -3901,7 +3914,9 @@ class HRMTrainingVirtualFields:
             query = (table.person_id == person_id) & \
                     (table.status != 2) & \
                     (table.job_role_id == jtable.id)
-            jobs = current.db(query).select(jtable.name)
+            jobs = current.db(query).select(jtable.name,
+                                            distinct=True,
+                                            orderby=jtable.name)
             if jobs:
                 output = ""
                 for job in jobs:
@@ -3929,7 +3944,8 @@ class HRMTrainingVirtualFields:
             table = s3db.hrm_human_resource
             query = (table.person_id == person_id) & \
                     (table.status != 2)
-            orgs = current.db(query).select(table.organisation_id)
+            orgs = current.db(query).select(table.organisation_id,
+                                            distinct=True)
             if orgs:
                 output = ""
                 represent = s3db.org_organisation_represent
