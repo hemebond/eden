@@ -698,6 +698,7 @@ class S3Request(object):
         components = component_name
         if components is None:
             components = cnames
+
         self.resource = manager.define_resource(self.prefix,
                                                 self.name,
                                                 id=self.id,

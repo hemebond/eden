@@ -251,34 +251,44 @@ class index():
 class organisations():
 
     def __call__(self):
+        from gluon.storage import Storage
+
         T = current.T
-        request = current.request
-        appname = request.application
-        response = current.response
+        #request = current.request
+        appname = current.request.application
+        #response = current.response
 
         tables = []
-        table = request.vars.get("table", None)
+        table = current.request.vars.get("table", None)
+
+        # URL format breaks the REST controller conventions
+        current.request.args.pop()
 
         if table is None or table=="regional":
-            resource, field_list = self._regional()
-            tables.append(self._table("regional", resource, field_list))
+            s3request, field_list = self._regional()
+
+            if table is None:
+                tables.append(self._table("regional", s3request.resource, field_list))
 
         if table is None or table=="groups":
-            resource, field_list = self._groups()
-            tables.append(self._table("groups", resource, field_list))
+            s3request, field_list = self._groups()
+
+            if table is None:
+                tables.append(self._table("groups", s3request.resource, field_list))
 
         if table is not None:
-            current.s3db.configure(resource.tablename,
-                           list_fields = field_list)
+            current.s3db.configure(s3request.resource.tablename,
+                                   list_fields = field_list)
 
-            #s3request = current.manager.parse_request(resource.prefix, resource.name, extension="aadata", http="GET")
-            s3request = current.manager.parse_request("org", "organisation", extension="aadata", http="GET")
-            print s3request
             output = s3request()
             return output
 
-        view = path.join(request.folder, "private", "templates",
-                         "DRRPP", "views", "organisations.html")
+        view = path.join(current.request.folder,
+                         "private",
+                         "templates",
+                         "DRRPP",
+                         "views",
+                         "organisations.html")
         current.response.view = open(view, "rb")
 
         return dict(tables=tables,
@@ -288,10 +298,13 @@ class organisations():
     def _regional():
         T = current.T
 
-        resource = current.manager.define_resource("org", "organisation")
+        s3request = current.manager.parse_request("org",
+                                                  "organisation",
+                                                  extension="aadata",
+                                                  http="GET")
         #f = (s3base.S3FieldSelector("project.id") != None) & \
         #    (s3base.S3FieldSelector("organisation_type_id$name").anyof(["Regional"]))
-        #resource.add_filter(f)
+        #request.resource.add_filter(f)
 
         field_list = [
             "id",
@@ -303,15 +316,18 @@ class organisations():
             "year",
             (T("Notes"), "comments")
         ]
-        return (resource, field_list)
+        return (s3request, field_list)
 
     @staticmethod
     def _groups():
         T = current.T
 
-        resource = current.manager.define_resource("org", "organisation")
+        s3request = current.manager.parse_request("org",
+                                                  "organisation",
+                                                  extension="aadata",
+                                                  http="GET")
         #f = s3base.S3FieldSelector("project.id") != None
-        #resource.add_filter(f)
+        #request.resource.add_filter(f)
 
         field_list = [
             "id",
@@ -322,7 +338,7 @@ class organisations():
             #"address",
             (T("Notes"), "comments")
         ]
-        return (resource, field_list)
+        return (s3request, field_list)
 
     @staticmethod
     def _table(name, resource, field_list, limit=10, orderby="name"):
