@@ -569,15 +569,14 @@ class S3SearchOptionsWidget(S3SearchWidget):
 
         fs = S3FieldSelector(field_name)
         fl = fs.resolve(resource)
+        field = fl.field
 
         # Check the field type
-        try:
-            #field = resource.table[field_name]
-            field = fl.field
-        except:
-            field_type = "virtual"
-        else:
+        if field is not None:
             field_type = str(field.type)
+        else:
+            field_type = "virtual"
+
 
         if self.options is not None:
             # Custom dict of options {value: label} or callable
@@ -594,7 +593,6 @@ class S3SearchOptionsWidget(S3SearchWidget):
                 opt_values = []
 
                 # Find unique values of options for that field
-                #rows = resource.select(field, groupby=field)
                 rows = resource.sqltable(fields=[field_name], as_rows=True)
 
                 if field_type.startswith("list"):
