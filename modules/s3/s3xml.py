@@ -629,11 +629,8 @@ class S3XML(S3Codec):
             @param locations: locations dict
         """
 
-        gis = current.gis
-        if not gis:
-            return
-
         db = current.db
+        gis = current.gis
         s3db = current.s3db
         request = current.request
         settings = current.deployment_settings

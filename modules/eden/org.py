@@ -986,8 +986,6 @@ class S3SiteModel(S3Model):
         T = current.T
         auth = current.auth
 
-        add_component = self.add_component
-
         # =====================================================================
         # Site / Facility (ICS terminology)
         #
@@ -1035,6 +1033,7 @@ class S3SiteModel(S3Model):
                                   )
 
         # Components
+        add_component = self.add_component
 
         # Human Resources
         # - direct component (suitable for Create/List)
@@ -2073,20 +2072,13 @@ def org_office_controller():
                     comment=T("Search for office by text."),
                     field=["name", "comments", "email"]
                   ),
-                  # S3SearchOptionsWidget(
-                    # name="office_search_org",
-                    # label=T("Organization"),
-                    # comment=T("Search for office by organization."),
-                    # field="organisation_id",
-                    # represent = %(name)s,
-                    # cols = 3
-                  # ),
-                  S3SearchOrgHierarchyWidget(
+                  S3SearchOptionsWidget(
                     name="office_search_org",
                     label=T("Organization"),
                     comment=T("Search for office by organization."),
                     field="organisation_id",
-                    represent ="%(name)s",
+                    represent = "%(name)s",
+                    cols = 3
                   ),
                   S3SearchOptionsWidget(
                     name="office_search_location",
