@@ -279,9 +279,7 @@ class organisations():
         if table is not None:
             current.s3db.configure(s3request.resource.tablename,
                                    list_fields = field_list)
-
-            output = s3request()
-            return output
+            return s3request()
 
         view = path.join(current.request.folder,
                          "private",
@@ -300,8 +298,7 @@ class organisations():
 
         s3request = current.manager.parse_request("org",
                                                   "organisation",
-                                                  extension="aadata",
-                                                  http="GET")
+                                                  extension="aadata")
         #f = (s3base.S3FieldSelector("project.id") != None) & \
         #    (s3base.S3FieldSelector("organisation_type_id$name").anyof(["Regional"]))
         #request.resource.add_filter(f)
@@ -324,8 +321,7 @@ class organisations():
 
         s3request = current.manager.parse_request("org",
                                                   "organisation",
-                                                  extension="aadata",
-                                                  http="GET")
+                                                  extension="aadata")
         #f = s3base.S3FieldSelector("project.id") != None
         #request.resource.add_filter(f)
 
