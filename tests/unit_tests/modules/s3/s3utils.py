@@ -49,28 +49,55 @@ class S3FKWrappersTests(unittest.TestCase):
 # =============================================================================
 class S3SQLTableTests(unittest.TestCase):
 
-    def testXML(self):
+    def testHTML(self):
         cols = [{'name': 'col_1', 'label': 'Col 1'}]
-        rows = [[u'Val 1']]
-        table = S3SQLTable(cols, rows)
+        table = S3SQLTable(cols,
+                           rows=[[u'Val 1']])
 
         self.assertEqual(str(table.xml()),
                          str(TABLE(THEAD(TR(TH("Col 1", _scope="col"))),
                                    TBODY(TR(TD("Val 1"))))))
 
-        rows = [[u'1', u'Val 1']]
-        table = S3SQLTable(cols, rows, bulk_actions=[("delete", "Delete")])
+        cols = [{'name': 'id', 'label': 'Id'},
+                {'name': 'col_1', 'label': 'Col 1'}]
+        row_actions = [{"label": T("Activate"),
+                        "url": URL(f="schedule_parser",
+                                   args="[id]"),
+                        "restrict": [1,]}]
+        bulk_actions = [("delete", "Delete")]
+        table = S3SQLTable(cols=cols[:],
+                           rows=[[u'1', u'Val 1'], [u'2', u'Val 2']],
+                           bulk_actions=bulk_actions)
         self.assertEqual(str(table.xml()),
                          str(FORM(SELECT(OPTION("", _value=""),
-                                         OPTION("Delete", _value="delete")),
+                                         OPTION("Delete", _value="delete"),
+                                         _name="action"),
+                                  INPUT(_type="submit", _value=T("Go")),
                                   TABLE(THEAD(TR(TH(""),
                                                  TH("Col 1", _scope="col"))),
                                         TBODY(TR(TD(INPUT(_name="action_selected",
                                                           _type="checkbox",
                                                           _value=1)),
-                                                 TD("Val 1")))),
+                                                 TD("Val 1")),
+                                              TR(TD(INPUT(_name="action_selected",
+                                                          _type="checkbox",
+                                                          _value=2)),
+                                                 TD("Val 2")))),
                                   _method="post",
                                   _action="")))
+
+        table = S3SQLTable(cols=cols[:],
+                           rows=[[u'1', u'Val 1'], [u'2', u'Val 2']],
+                           row_actions=row_actions)
+        self.assertEqual(str(table.xml()),
+                         str(TABLE(THEAD(TR(TH("Col 1", _scope="col"),
+                                            TH(""))),
+                                   TBODY(TR(TD("Val 1"),
+                                            TD(A("Activate",
+                                                 _href=URL(f="schedule_parser",
+                                                           args="1")))),
+                                         TR(TD("Val 2"),
+                                            TD(""))))))
 
     def testFromResource(self):
         T = current.T

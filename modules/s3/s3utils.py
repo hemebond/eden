@@ -1538,9 +1538,14 @@ class S3SQLTable(object):
             if key[0] == "_":
                 self.html_attributes[key] = value
 
-    def xml(self):
+    def html(self):
+        T = current.T
+
         # Columns
         html_cols = []
+
+        if self.bulk_actions or self.row_actions:
+            self.cols.pop(0)
 
         if self.bulk_actions:
             html_cols.append(TH(""))
@@ -1556,14 +1561,25 @@ class S3SQLTable(object):
         for row in self.rows:
             html_cells = []
 
+            if self.bulk_actions or self.row_actions:
+                row_id = int(row.pop(0))
+
             if self.bulk_actions:
-                html_cells.append(TD(""))
+                html_cells.append(TD(INPUT(_name="action_selected",
+                                           _type="checkbox",
+                                           _value=row_id)))
 
             for value in row:
                 html_cells.append(TD(XML(value)))
 
             if self.row_actions:
-                html_cells.append(TD(""))
+                actions = []
+                for action in self.row_actions:
+                    if row_id in action["restrict"]:
+                        actions.append(A(action["label"],
+                                         _href=action["url"].replace("%5Bid%5D", str(row_id))))
+
+                html_cells.append(TD(*actions))
 
             html_rows.append(TR(*html_cells))
 
@@ -1573,16 +1589,33 @@ class S3SQLTable(object):
                            **self.html_attributes)
 
         if self.bulk_actions:
-            return FORM(html_table,
-                        _action="",
-                        _method="post")
-        else:
-            return html_table
+            actions = []
+            for action, label in self.bulk_actions:
+                actions.append(OPTION(label, _value=action))
+
+            html_table = FORM(SELECT(OPTION("", ""),
+                                     *actions,
+                                     _name="action"),
+                              INPUT(_type="submit", _value=T("Go")),
+                              html_table,
+                              _action="",
+                              _method="post")
+
+        return html_table
+
+    def xml(self):
+        return unicode(self.html())
 
     @classmethod
-    def from_resource(cls, resource, field_list, limit=10, orderby=None):
-        T = current.T
+    def from_resource(cls,
+                      resource,
+                      field_list,
+                      limit=10,
+                      orderby=None,
+                      row_actions=None,
+                      bulk_actions=None):
         from s3resource import S3FieldSelector
+        T = current.T
 
         fields = []
         cols = []
@@ -1635,7 +1668,11 @@ class S3SQLTable(object):
         if rows is None:
             rows = []
 
-        return cls(cols, rows, orderby=orderby)
+        return cls(cols,
+                   rows,
+                   orderby=orderby,
+                   row_actions=row_actions,
+                   bulk_actions=bulk_actions)
 
 
 # =============================================================================
@@ -1647,19 +1684,20 @@ class S3DataTable(S3SQLTable):
 
         super(S3DataTable, self).__init__(*args, **kwargs)
 
-        _class = self.html_attributes.get("_class", "")
-        _class = " ".join(_class, "dataTable display")
-        self.html_attributes["_class"] = _class
+        html_classes = self.html_attributes.get("_class", "").split(" ")
+        html_classes += ["dataTable", "display"]
+        self.html_attributes["_class"] = " ".join(html_classes)
 
         self.options = options
 
     def xml(self):
         # dataTable initialisation options
         self.options = {
-            "iDisplayLength": self.limit,
+            #"iDisplayLength": self.limit,
+            "iDisplayLength": 10,
             "iDeferLoading": len(self.rows),
             "bServerSide": True,
-            "sAjaxSource": "/%s/default/index/organisations/?table=%s" % (current.request.application, name),
+            #"sAjaxSource": "/%s/default/index/organisations/?table=%s" % (current.request.application, name),
             "aoColumnDefs": [
                 {
                     # hide the ID column
@@ -1671,19 +1709,18 @@ class S3DataTable(S3SQLTable):
             "sDom": 'frltpi',
         }
 
-        html_table = super(S3DataTable, self).xml()
+        html_table = super(S3DataTable, self).html()
 
-        html_script = SCRIPT('''
+        html_script = SCRIPT("""
             if (S3.dataTablesInstances == undefined) {
                 S3.dataTablesInstances = new Array();
             }
-
             S3.dataTablesInstances.push({
-                "options": %s
+                'options': %s
             });
-        ''') % json.dumps(self.options)
+        """ % json.dumps(self.options))
 
-        return TAG[""](html_table, html_script)
+        return unicode(TAG[""](html_table, html_script))
 
 
 # =============================================================================

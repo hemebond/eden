@@ -1,7 +1,7 @@
 S3.pluginDefaults = {
 	"dataTables": {
 		"iDisplayLength": 25,
-		"bProcessing": True,
+		"bProcessing": true,
 		"bFilter": true,
 		"aaSorting": [[1, 'asc']],
 		//"sortFixed": null,

@@ -15,3 +15,7 @@
 	{{table = tables[1]}}
 	{{include "_datatable.html"}}
 {{pass}}
+
+{{if globals().get("table", False):}}
+	{{=table}}
+{{pass}}

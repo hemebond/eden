@@ -1,11 +1,28 @@
 import json
 T = current.T
 
-from s3.s3utils import S3SQLTable
+from s3.s3utils import S3SQLTable, S3DataTable
 
 
 def index():
-    table =
+    cols = [{'name': 'id', 'label': 'Id'},
+            {'name': 'col_1', 'label': 'Col 1'}]
+    rows = [[u'1', u'Val 1']]
+    row_actions = [{"label": T("Activate"),
+                    "url": URL(f="schedule_parser",
+                               args="[id]"),
+                    "restrict": [1,]}]
+    bulk_actions = [("delete", "Delete")]
+
+    table = S3DataTable({},
+                        cols,
+                        rows,
+                        row_actions=row_actions,
+                        bulk_actions=bulk_actions)
+    #~ table = S3SQLTable(cols,
+                       #~ rows)
+
+    return {"table": table, "appname": "eden"}
 
 
 def old():
