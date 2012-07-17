@@ -50,15 +50,15 @@ class S3FKWrappersTests(unittest.TestCase):
 class S3SQLTableTests(unittest.TestCase):
 
     def testXML(self):
-        cols = [{"name": "col_1", "label": "Col 1"}]
-        rows = [["Val 1"]]
+        cols = [{'name': 'col_1', 'label': 'Col 1'}]
+        rows = [[u'Val 1']]
         table = S3SQLTable(cols, rows)
 
         self.assertEqual(str(table.xml()),
                          str(TABLE(THEAD(TR(TH("Col 1", _scope="col"))),
                                    TBODY(TR(TD("Val 1"))))))
 
-        rows = [[1, "Val 1"]]
+        rows = [[u'1', u'Val 1']]
         table = S3SQLTable(cols, rows, bulk_actions=[("delete", "Delete")])
         self.assertEqual(str(table.xml()),
                          str(FORM(SELECT(OPTION("", _value=""),
@@ -73,15 +73,19 @@ class S3SQLTableTests(unittest.TestCase):
                                   _action="")))
 
     def testFromResource(self):
+        T = current.T
+
+        # need to be logged in to query resources
+        auth.s3_impersonate("admin@example.com")
+
         r = current.manager.define_resource("org", "organisation")
-        field_list = ["id"]
         table = S3SQLTable.from_resource(r,
                                          field_list=["id"],
                                          limit=1)
         self.assertEqual(table.cols,
-                         [{"name": "id", "label": "Id", "type": "id"}])
+                         [{'name': 'id', 'label': 'Id', 'type': 'id'}])
         self.assertEqual(table.rows,
-                         [[1,]])
+                         [[u'1',]])
 
 
 # =============================================================================

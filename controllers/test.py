@@ -1,8 +1,14 @@
 import json
 T = current.T
 
+from s3.s3utils import S3SQLTable
+
 
 def index():
+    table =
+
+
+def old():
 
     def _regional():
         resource = s3mgr.define_resource("org", "organisation")
