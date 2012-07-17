@@ -1604,7 +1604,7 @@ class S3SQLTable(object):
         return html_table
 
     def xml(self):
-        return unicode(self.html())
+        return s3_unicode(self.html())
 
     @classmethod
     def from_resource(cls,
@@ -1678,7 +1678,6 @@ class S3SQLTable(object):
 # =============================================================================
 class S3DataTable(S3SQLTable):
     def __init__(self,
-                 options,
                  *args,
                  **kwargs):
 
@@ -1688,7 +1687,7 @@ class S3DataTable(S3SQLTable):
         html_classes += ["dataTable", "display"]
         self.html_attributes["_class"] = " ".join(html_classes)
 
-        self.options = options
+        self.options = kwargs.get("options")
 
     def xml(self):
         # dataTable initialisation options
@@ -1720,7 +1719,25 @@ class S3DataTable(S3SQLTable):
             });
         """ % json.dumps(self.options))
 
-        return unicode(TAG[""](html_table, html_script))
+        return s3_unicode(TAG[""](html_table, html_script))
+
+    @classmethod
+    def from_resource(cls,
+                      resource,
+                      field_list,
+                      options={},
+                      limit=10,
+                      orderby=None,
+                      row_actions=None,
+                      bulk_actions=None):
+        table = super(S3DataTable, cls).from_resource(resource,
+                                                       field_list,
+                                                       limit,
+                                                       orderby,
+                                                       row_actions,
+                                                       bulk_actions)
+        table.options = options
+        return table
 
 
 # =============================================================================

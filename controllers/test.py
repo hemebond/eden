@@ -14,13 +14,15 @@ def index():
                     "restrict": [1,]}]
     bulk_actions = [("delete", "Delete")]
 
-    table = S3DataTable({},
-                        cols,
-                        rows,
-                        row_actions=row_actions,
-                        bulk_actions=bulk_actions)
+    #~ table = S3DataTable({},
+                        #~ cols,
+                        #~ rows,
+                        #~ row_actions=row_actions,
+                        #~ bulk_actions=bulk_actions)
     #~ table = S3SQLTable(cols,
                        #~ rows)
+    r = current.manager.define_resource("org", "organisation")
+    table = S3DataTable.from_resource(r, field_list=["id", "name"], options={}, bulk_actions=bulk_actions)
 
     return {"table": table, "appname": "eden"}
 
