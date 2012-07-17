@@ -1394,7 +1394,9 @@ class SQLTABLES3(SQLTABLE):
 
         # reverted since it causes errors (admin/user & manual importing of req/req/import)
         # super(SQLTABLES3, self).__init__(**attributes)
-        TABLE.__init__(self, **attributes)
+
+        # what did this do? anything? - James 2012-07-17
+        #TABLE.__init__(self, **attributes)
         self.components = []
         self.attributes = attributes
         self.sqlrows = sqlrows
@@ -1510,6 +1512,179 @@ class SQLTABLES3(SQLTABLE):
                 row.append(TD(r))
             tbody.append(TR(_class=_class, *row))
         components.append(TBODY(*tbody))
+
+
+# =============================================================================
+class S3SQLTable(object):
+    def __init__(self,
+                 cols,
+                 rows,
+                 orderby="id",
+                 row_actions=None, # a list of objects/tuples?
+                 bulk_actions=None, # a list of objects/tuples?
+                 **kwargs):
+
+        self.template = "_table.html" # not used yet
+
+        self.cols = cols
+        self.rows = rows
+        #self.limit = limit
+        self.orderby = orderby
+        self.row_actions = row_actions
+        self.bulk_actions = bulk_actions
+
+        self.html_attributes = {}
+        for key, value in kwargs:
+            if key[0] == "_":
+                self.html_attributes[key] = value
+
+    def xml(self):
+        # Columns
+        html_cols = []
+
+        if self.bulk_actions:
+            html_cols.append(TH(""))
+
+        for col in self.cols:
+            html_cols.append(TH(col["label"], _scope="col"))
+
+        if self.row_actions:
+            html_cols.append(TH(""))
+
+        # Rows
+        html_rows = []
+        for row in self.rows:
+            html_cells = []
+
+            if self.bulk_actions:
+                html_cells.append(TD(""))
+
+            for value in row:
+                html_cells.append(TD(XML(value)))
+
+            if self.row_actions:
+                html_cells.append(TD(""))
+
+            html_rows.append(TR(*html_cells))
+
+        # Table
+        html_table = TABLE(THEAD(TR(*html_cols)),
+                           TBODY(*html_rows),
+                           **self.html_attributes)
+
+        if self.bulk_actions:
+            return FORM(html_table,
+                        _action="",
+                        _method="post")
+        else:
+            return html_table
+
+    @classmethod
+    def from_resource(cls, resource, field_list, limit=10, orderby=None):
+        T = current.T
+        from s3resource import S3FieldSelector
+
+        fields = []
+        cols = []
+        for field_name in field_list:
+            field_label = None
+            field_type = None
+
+            if isinstance(field_name, tuple):
+                if len(field_name) == 2:
+                    field_label, field_name = field_name
+                elif len(field_name) == 3:
+                    field_label, field_name, field_type = field_name
+                else:
+                    raise
+
+            fs = S3FieldSelector(field_name)
+            lf = fs.resolve(resource)
+
+            if lf.field != None:
+                field = lf.field
+
+            if field_label is None:
+                if field is None:
+                    field_label = " ".join([w.capitalize() for w in field_name.split(".")[-1].split("_")])
+                else:
+                    field_label = field.label
+
+            if field_type is None:
+                if field is None:
+                    field_type = "string"
+                else:
+                    field_type = str(field.type)
+
+            cols.append({
+                "name": field_name,
+                "label": field_label,
+                "type": field_type
+            })
+
+            orderby_field = None
+            if orderby and str(orderby) == str(field_name):
+                orderby_field = field
+
+
+        rows = resource.sqltable(fields=field_list,
+                                 limit=limit,
+                                 orderby=orderby_field,
+                                 as_page=True)
+
+        if rows is None:
+            rows = []
+
+        return cls(cols, rows, orderby=orderby)
+
+
+# =============================================================================
+class S3DataTable(S3SQLTable):
+    def __init__(self,
+                 options,
+                 *args,
+                 **kwargs):
+
+        super(S3DataTable, self).__init__(*args, **kwargs)
+
+        _class = self.html_attributes.get("_class", "")
+        _class = " ".join(_class, "dataTable display")
+        self.html_attributes["_class"] = _class
+
+        self.options = options
+
+    def xml(self):
+        # dataTable initialisation options
+        self.options = {
+            "iDisplayLength": self.limit,
+            "iDeferLoading": len(self.rows),
+            "bServerSide": True,
+            "sAjaxSource": "/%s/default/index/organisations/?table=%s" % (current.request.application, name),
+            "aoColumnDefs": [
+                {
+                    # hide the ID column
+                    "bVisible": False,
+                    "aTargets": [0]
+                }
+            ],
+            "aoColumns": [{"sName": col["name"]} for col in self.cols],
+            "sDom": 'frltpi',
+        }
+
+        html_table = super(S3DataTable, self).xml()
+
+        html_script = SCRIPT('''
+            if (S3.dataTablesInstances == undefined) {
+                S3.dataTablesInstances = new Array();
+            }
+
+            S3.dataTablesInstances.push({
+                "options": %s
+            });
+        ''') % json.dumps(self.options)
+
+        return TAG[""](html_table, html_script)
+
 
 # =============================================================================
 class S3BulkImporter(object):
