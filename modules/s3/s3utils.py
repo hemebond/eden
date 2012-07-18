@@ -1516,110 +1516,31 @@ class SQLTABLES3(SQLTABLE):
 
 # =============================================================================
 class S3SQLTable(object):
-    def __init__(self,
-                 cols,
-                 rows,
-                 orderby="id",
-                 row_actions=None, # a list of objects/tuples?
-                 bulk_actions=None, # a list of objects/tuples?
-                 **kwargs):
+    DEFAULT_PAGE_SIZE = 25
+
+    def __init__(self, cols, rows, **kwargs):
+        #super(S3SQLTable, self).__init__(**kwargs)
 
         self.template = "_table.html" # not used yet
 
         self.cols = cols
         self.rows = rows
-        #self.limit = limit
-        self.orderby = orderby
-        self.row_actions = row_actions
-        self.bulk_actions = bulk_actions
+        self.row_actions = kwargs.get("row_actions", None)
+        self.bulk_actions = kwargs.get("bulk_actions", None)
 
         self.html_attributes = {}
-        for key, value in kwargs:
+        for key, value in kwargs.items():
             if key[0] == "_":
                 self.html_attributes[key] = value
 
-    def html(self):
-        T = current.T
-
-        # Columns
-        html_cols = []
-
-        if self.bulk_actions or self.row_actions:
-            self.cols.pop(0)
-
-        if self.bulk_actions:
-            html_cols.append(TH(""))
-
-        for col in self.cols:
-            html_cols.append(TH(col["label"], _scope="col"))
-
-        if self.row_actions:
-            html_cols.append(TH(""))
-
-        # Rows
-        html_rows = []
-        for row in self.rows:
-            html_cells = []
-
-            if self.bulk_actions or self.row_actions:
-                row_id = int(row.pop(0))
-
-            if self.bulk_actions:
-                html_cells.append(TD(INPUT(_name="action_selected",
-                                           _type="checkbox",
-                                           _value=row_id)))
-
-            for value in row:
-                html_cells.append(TD(XML(value)))
-
-            if self.row_actions:
-                actions = []
-                for action in self.row_actions:
-                    if row_id in action["restrict"]:
-                        actions.append(A(action["label"],
-                                         _href=action["url"].replace("%5Bid%5D", str(row_id))))
-
-                html_cells.append(TD(*actions))
-
-            html_rows.append(TR(*html_cells))
-
-        # Table
-        html_table = TABLE(THEAD(TR(*html_cols)),
-                           TBODY(*html_rows),
-                           **self.html_attributes)
-
-        if self.bulk_actions:
-            actions = []
-            for action, label in self.bulk_actions:
-                actions.append(OPTION(label, _value=action))
-
-            html_table = FORM(SELECT(OPTION("", ""),
-                                     *actions,
-                                     _name="action"),
-                              INPUT(_type="submit", _value=T("Go")),
-                              html_table,
-                              _action="",
-                              _method="post")
-
-        return html_table
-
-    def xml(self):
-        return s3_unicode(self.html())
-
     @classmethod
-    def from_resource(cls,
-                      resource,
-                      field_list,
-                      limit=10,
-                      orderby=None,
-                      row_actions=None,
-                      bulk_actions=None):
+    def from_resource(cls, resource, field_list, limit=None, orderby=None, **kwargs):
         from s3resource import S3FieldSelector
         T = current.T
 
         fields = []
         cols = []
-        for field_name in field_list:
+        for idx, field_name in enumerate(field_list):
             field_label = None
             field_type = None
 
@@ -1630,6 +1551,8 @@ class S3SQLTable(object):
                     field_label, field_name, field_type = field_name
                 else:
                     raise
+
+                field_list[idx] = field_name
 
             fs = S3FieldSelector(field_name)
             lf = fs.resolve(resource)
@@ -1659,7 +1582,6 @@ class S3SQLTable(object):
             if orderby and str(orderby) == str(field_name):
                 orderby_field = field
 
-
         rows = resource.sqltable(fields=field_list,
                                  limit=limit,
                                  orderby=orderby_field,
@@ -1668,45 +1590,132 @@ class S3SQLTable(object):
         if rows is None:
             rows = []
 
-        return cls(cols,
-                   rows,
-                   orderby=orderby,
-                   row_actions=row_actions,
-                   bulk_actions=bulk_actions)
+        return cls(cols, rows, **kwargs)
+
+    def html(self):
+        T = current.T
+
+        # Columns
+        html_cols = []
+
+        for col in self.cols:
+            html_cols.append(TH(col["label"], _scope="col"))
+
+        if self.row_actions:
+            html_cols.append(TH(""))
+
+        # Rows
+        html_rows = []
+        for row in self.rows:
+            html_cells = []
+
+            for value in row:
+                html_cells.append(TD(XML(value)))
+
+            if self.row_actions:
+                html_cells.append(TD(""))
+
+            html_rows.append(TR(*html_cells))
+
+        # Table
+        html_table = TABLE(THEAD(TR(*html_cols)),
+                           TBODY(*html_rows),
+                           **self.html_attributes)
+
+        if self.bulk_actions:
+            actions = []
+            for action, label in self.bulk_actions:
+                actions.append(OPTION(label, _value=action))
+
+            html_table = FORM(SELECT(OPTION("", ""),
+                                     *actions,
+                                     _name="action"),
+                              INPUT(_type="submit", _value=T("Go")),
+                              html_table,
+                              _action="",
+                              _method="post")
+
+        return html_table
+
+    def xml(self):
+        return s3_unicode(self.html())
 
 
 # =============================================================================
 class S3DataTable(S3SQLTable):
-    def __init__(self,
-                 *args,
-                 **kwargs):
-
-        super(S3DataTable, self).__init__(*args, **kwargs)
+    def __init__(self, cols, rows, **kwargs):
+        super(S3DataTable, self).__init__(cols, rows, **kwargs)
 
         html_classes = self.html_attributes.get("_class", "").split(" ")
         html_classes += ["dataTable", "display"]
         self.html_attributes["_class"] = " ".join(html_classes)
 
+        self.page_size = kwargs.get("page_size", self.DEFAULT_PAGE_SIZE)
         self.options = kwargs.get("options")
+        self.total_rows = kwargs.get("total_rows")
+
+    @classmethod
+    def from_resource(cls, resource, field_list, **kwargs):
+        limit = kwargs.pop("limit", None)
+        options = kwargs.pop("options", {})
+
+        page_size = kwargs.get("page_size", S3SQLTable.DEFAULT_PAGE_SIZE)
+
+        if kwargs.get("no_sspag", False):
+            page_size = -1
+
+        if page_size == -1:
+            options["bServerSide"] = False
+        else:
+            if "sAjaxSource" in options:
+                options["bServerSide"] = True
+                limit = page_size
+            else:
+                options["bServerSide"] = False
+
+        table = super(S3DataTable, cls).from_resource(resource, field_list, limit, **kwargs)
+
+        if limit:
+            if len(table.rows) < limit:
+                table.total_rows = len(table.rows)
+            else:
+                table.total_rows = len(resource.load())
+        else:
+            table.total_rows = len(resource.load())
+
+        table.options = options
+
+        return table
 
     def xml(self):
         # dataTable initialisation options
-        self.options = {
-            #"iDisplayLength": self.limit,
-            "iDisplayLength": 10,
-            "iDeferLoading": len(self.rows),
-            "bServerSide": True,
-            #"sAjaxSource": "/%s/default/index/organisations/?table=%s" % (current.request.application, name),
-            "aoColumnDefs": [
-                {
-                    # hide the ID column
-                    "bVisible": False,
-                    "aTargets": [0]
-                }
-            ],
-            "aoColumns": [{"sName": col["name"]} for col in self.cols],
-            "sDom": 'frltpi',
-        }
+        self.options.update({
+            "iDisplayLength": self.page_size,
+            "iDeferLoading": self.total_rows,
+            "bServerSide": "sAjaxSource" in self.options
+        })
+
+        if "aoColumnDefs" not in self.options:
+            self.options["aoColumnDefs"] = []
+        #"aoColumns": [{"sName": col["name"]} for col in self.cols]
+
+        if self.bulk_actions:
+            self.options["aoColumnDefs"].append({
+                "bSortable": False,
+                "aTargets": [0]
+            })
+        elif self.row_actions:
+            self.options["aoColumnDefs"].append({
+                "bVisible": False,
+                "aTargets": [0]
+            })
+
+        if self.row_actions:
+            self.options["aoColumnDefs"].append({
+                "mDataProp": None,
+                "bSortable": False,
+                "aTargets": [len(self.cols)]
+            })
 
         html_table = super(S3DataTable, self).html()
 
@@ -1715,29 +1724,15 @@ class S3DataTable(S3SQLTable):
                 S3.dataTablesInstances = new Array();
             }
             S3.dataTablesInstances.push({
-                'options': %s
+                'options': %s,
+                'row_actions': %s,
+                'bulk_actions': %s
             });
-        """ % json.dumps(self.options))
+        """ % (json.dumps(self.options),
+               self.row_actions,
+               self.bulk_actions))
 
         return s3_unicode(TAG[""](html_table, html_script))
-
-    @classmethod
-    def from_resource(cls,
-                      resource,
-                      field_list,
-                      options={},
-                      limit=10,
-                      orderby=None,
-                      row_actions=None,
-                      bulk_actions=None):
-        table = super(S3DataTable, cls).from_resource(resource,
-                                                       field_list,
-                                                       limit,
-                                                       orderby,
-                                                       row_actions,
-                                                       bulk_actions)
-        table.options = options
-        return table
 
 
 # =============================================================================

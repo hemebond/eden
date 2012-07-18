@@ -5,14 +5,24 @@ from s3.s3utils import S3SQLTable, S3DataTable
 
 
 def index():
-    cols = [{'name': 'id', 'label': 'Id'},
+    cols = [{'name': 'id', 'label': ''},
             {'name': 'col_1', 'label': 'Col 1'}]
     rows = [[u'1', u'Val 1']]
-    row_actions = [{"label": T("Activate"),
+    row_actions = [{"label": "Enable",
                     "url": URL(f="schedule_parser",
                                args="[id]"),
-                    "restrict": [1,]}]
+                    "restrict": [1,],
+                    "css": "icon-ok-sign"},
+                   {"label": "Disable",
+                    "url": URL(f="schedule_parser",
+                               args="[id]"),
+                    "restrict": [1,2,3,4],
+                    "css": "icon-remove-sign"}]
     bulk_actions = [("delete", "Delete")]
+    options = {
+        "sDom": 'frltpi',
+        "sAjaxSource": "/eden/org/organisation.aadata"
+    }
 
     #~ table = S3DataTable({},
                         #~ cols,
@@ -22,7 +32,15 @@ def index():
     #~ table = S3SQLTable(cols,
                        #~ rows)
     r = current.manager.define_resource("org", "organisation")
-    table = S3DataTable.from_resource(r, field_list=["id", "name"], options={}, bulk_actions=bulk_actions)
+    #~ table = S3SQLTable.from_resource(resource=r,
+                                     #~ field_list=[("", "id"), "name"],
+                                     #~ bulk_actions=bulk_actions,
+                                     #~ row_actions=row_actions)
+    table = S3DataTable.from_resource(resource=r,
+                                      field_list=[("", "id"), "name", "acronym", "organisation_type_id", "sector_id", "country", "website"],
+                                      options=options,
+                                      bulk_actions=bulk_actions,
+                                      row_actions=row_actions)
 
     return {"table": table, "appname": "eden"}
 

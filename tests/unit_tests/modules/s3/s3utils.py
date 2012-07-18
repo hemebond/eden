@@ -73,15 +73,11 @@ class S3SQLTableTests(unittest.TestCase):
                                          OPTION("Delete", _value="delete"),
                                          _name="action"),
                                   INPUT(_type="submit", _value=T("Go")),
-                                  TABLE(THEAD(TR(TH(""),
+                                  TABLE(THEAD(TR(TH("Id", _scope="col"),
                                                  TH("Col 1", _scope="col"))),
-                                        TBODY(TR(TD(INPUT(_name="action_selected",
-                                                          _type="checkbox",
-                                                          _value=1)),
+                                        TBODY(TR(TD("1"),
                                                  TD("Val 1")),
-                                              TR(TD(INPUT(_name="action_selected",
-                                                          _type="checkbox",
-                                                          _value=2)),
+                                              TR(TD("2"),
                                                  TD("Val 2")))),
                                   _method="post",
                                   _action="")))
@@ -90,30 +86,70 @@ class S3SQLTableTests(unittest.TestCase):
                            rows=[[u'1', u'Val 1'], [u'2', u'Val 2']],
                            row_actions=row_actions)
         self.assertEqual(str(table.xml()),
-                         str(TABLE(THEAD(TR(TH("Col 1", _scope="col"),
+                         str(TABLE(THEAD(TR(TH("Id", _scope="col"),
+                                            TH("Col 1", _scope="col"),
                                             TH(""))),
-                                   TBODY(TR(TD("Val 1"),
-                                            TD(A("Activate",
-                                                 _href=URL(f="schedule_parser",
-                                                           args="1")))),
-                                         TR(TD("Val 2"),
+                                   TBODY(TR(TD("1"),
+                                            TD("Val 1"),
+                                            TD("")),
+                                         TR(TD("2"),
+                                            TD("Val 2"),
                                             TD(""))))))
 
     def testFromResource(self):
-        T = current.T
-
         # need to be logged in to query resources
         auth.s3_impersonate("admin@example.com")
 
         r = current.manager.define_resource("org", "organisation")
         table = S3SQLTable.from_resource(r,
-                                         field_list=["id"],
+                                         ["id"],
                                          limit=1)
         self.assertEqual(table.cols,
                          [{'name': 'id', 'label': 'Id', 'type': 'id'}])
         self.assertEqual(table.rows,
                          [[u'1',]])
 
+        # column label
+        table = S3SQLTable.from_resource(r,
+                                         [("MyCol", "id"),],
+                                         limit=1)
+        self.assertTrue(len(table.cols) == 1)
+        self.assertTrue(len(table.rows) == 1)
+        self.assertTrue(len(table.rows[0]) == 1)
+
+
+# =============================================================================
+class S3DataTableTests(unittest.TestCase):
+
+    def testFromResource(self):
+        # need to be logged in to query resources
+        auth.s3_impersonate("admin@example.com")
+
+        r = current.manager.define_resource("org", "organisation")
+
+        # limit
+        table = S3DataTable.from_resource(r,
+                                          ["id"],
+                                          limit=1)
+        self.assertEqual(table.cols,
+                         [{'name': 'id', 'label': 'Id', 'type': 'id'}])
+        self.assertEqual(table.rows,
+                         [[u'1',]])
+
+        # ajax source and page_size
+        table = S3DataTable.from_resource(r,
+                                          ["id"],
+                                          options={"sAjaxSource": "_"},
+                                          page_size=1)
+        self.assertEqual(table.rows, [[u'1',]])
+
+        # ajax source, page_size and limit
+        table = S3DataTable.from_resource(r,
+                                          ["id"],
+                                          options={"sAjaxSource": "_"},
+                                          page_size=1,
+                                          limit=2)
+        self.assertTrue(len(table.rows) == 1)
 
 # =============================================================================
 def run_suite(*test_classes):
@@ -133,6 +169,7 @@ if __name__ == "__main__":
     run_suite(
         S3FKWrappersTests,
         S3SQLTableTests,
+        S3DataTableTests,
     )
 
 # END ========================================================================
