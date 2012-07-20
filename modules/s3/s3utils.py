@@ -1525,6 +1525,7 @@ class S3SQLTable(object):
 
         self.cols = cols
         self.rows = rows
+        self.limit = kwargs.get("limit", None)
         self.row_actions = kwargs.get("row_actions", None)
         self.bulk_actions = kwargs.get("bulk_actions", None)
 
@@ -1538,8 +1539,12 @@ class S3SQLTable(object):
         from s3resource import S3FieldSelector
         T = current.T
 
-        fields = []
+
+        # columns
         cols = []
+        fields = []
+        orderby_field = None
+
         for idx, field_name in enumerate(field_list):
             field_label = None
             field_type = None
@@ -1559,6 +1564,8 @@ class S3SQLTable(object):
 
             if lf.field != None:
                 field = lf.field
+            else:
+                field = None
 
             if field_label is None:
                 if field is None:
@@ -1578,14 +1585,18 @@ class S3SQLTable(object):
                 "type": field_type
             })
 
-            orderby_field = None
             if orderby and str(orderby) == str(field_name):
                 orderby_field = field
 
-        rows = resource.sqltable(fields=field_list,
-                                 limit=limit,
-                                 orderby=orderby_field,
-                                 as_page=True)
+        # rows
+        rows = None
+
+        if limit is None or limit > 0:
+            rows = resource.sqltable(fields=field_list,
+                                     start=None,
+                                     limit=limit,
+                                     orderby=orderby_field,
+                                     as_list=True)
 
         if rows is None:
             rows = []
@@ -1606,11 +1617,14 @@ class S3SQLTable(object):
 
         # Rows
         html_rows = []
-        for row in self.rows:
+        for row in self.rows[:self.limit]:
             html_cells = []
 
-            for value in row:
-                html_cells.append(TD(XML(value)))
+            for col in self.cols:
+                cell_value = row[col["name"]]
+                if cell_value is None:
+                    cell_value = ""
+                html_cells.append(TD(cell_value))
 
             if self.row_actions:
                 html_cells.append(TD(""))
@@ -1650,54 +1664,64 @@ class S3DataTable(S3SQLTable):
         html_classes += ["dataTable", "display"]
         self.html_attributes["_class"] = " ".join(html_classes)
 
-        self.page_size = kwargs.get("page_size", self.DEFAULT_PAGE_SIZE)
+        #self.page_size = kwargs.get("page_size", self.DEFAULT_PAGE_SIZE)
         self.options = kwargs.get("options")
         self.total_rows = kwargs.get("total_rows")
 
     @classmethod
     def from_resource(cls, resource, field_list, **kwargs):
-        limit = kwargs.pop("limit", None)
+        """
+            @param page_size: number of rows to display per page
+            @param limit: number of rows to fetch from the database
+        """
         options = kwargs.pop("options", {})
-
-        page_size = kwargs.get("page_size", S3SQLTable.DEFAULT_PAGE_SIZE)
+        page_size = kwargs.pop("page_size", None)
+        limit = kwargs.pop("limit", None)
 
         if kwargs.get("no_sspag", False):
-            page_size = -1
+            page_size = None
 
-        if page_size == -1:
+        if page_size is None:
             options["bServerSide"] = False
-        else:
-            if "sAjaxSource" in options:
-                options["bServerSide"] = True
-                limit = page_size
-            else:
-                options["bServerSide"] = False
+        elif "sAjaxSource" in options:
+            options["bServerSide"] = True
+            limit = page_size
 
         table = super(S3DataTable, cls).from_resource(resource, field_list, limit, **kwargs)
 
-        if limit:
-            if len(table.rows) < limit:
-                table.total_rows = len(table.rows)
-            else:
-                table.total_rows = len(resource.load())
+        if limit and len(table.rows) < limit:
+            table.total_rows = len(table.rows)
         else:
-            table.total_rows = len(resource.load())
+            table.total_rows = resource.count()
 
         table.options = options
+        table.page_size = page_size
 
         return table
 
     def xml(self):
+        T = current.T
         # dataTable initialisation options
-        self.options.update({
-            "iDisplayLength": self.page_size,
-            "iDeferLoading": self.total_rows,
-            "bServerSide": "sAjaxSource" in self.options
-        })
+
+        if self.page_size:
+            self.options["iDisplayLength"] = self.page_size
+            self.options["iDeferLoading"] = self.total_rows
+
+        aLengthMenu = set([
+            (25, 25),
+            (50, 50),
+            (-1, "All"),
+        ])
+        aLengthMenu.add((self.page_size, self.page_size))
+        aLengthMenu = sorted(aLengthMenu, key=lambda x: x[1])
+        aLengthMenu = list(zip(*aLengthMenu))
+
+        self.options["aLengthMenu"] = aLengthMenu
 
         if "aoColumnDefs" not in self.options:
             self.options["aoColumnDefs"] = []
-        #"aoColumns": [{"sName": col["name"]} for col in self.cols]
+
+        self.options["aoColumns"] = [{"sName": col["name"]} for col in self.cols]
 
         if self.bulk_actions:
             self.options["aoColumnDefs"].append({
@@ -1728,9 +1752,11 @@ class S3DataTable(S3SQLTable):
                 'row_actions': %s,
                 'bulk_actions': %s
             });
+            S3.i18n.all='%s';
         """ % (json.dumps(self.options),
                self.row_actions,
-               self.bulk_actions))
+               self.bulk_actions,
+               T("All")))
 
         return s3_unicode(TAG[""](html_table, html_script))
 

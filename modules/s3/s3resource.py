@@ -2890,7 +2890,8 @@ class S3Resource(object):
         def __represent(f, row, columns=columns):
             field = f.field
             if field is not None:
-                return repr_row(field, record=row, linkto=linkto)
+                #return repr_row(field, record=row, linkto=linkto)
+                return repr_row(field, record=row)
             else:
                 tname = f.tname
                 fname = f.fname
