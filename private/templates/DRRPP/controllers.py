@@ -12,7 +12,7 @@ def INPUT_BTN(**attributes):
     """
 
     return SPAN(INPUT(_class = "button-right",
-                      **attributes), 
+                      **attributes),
                 _class = "button-left")
 
 # =============================================================================
@@ -503,7 +503,7 @@ def register_onaccept(form):
     # @ToDo: process Custom Fields
     # Position
     # Reason
-    
+
 
 # =============================================================================
 class contact():
@@ -535,7 +535,7 @@ class contact():
                 )
             if result:
                 response.confirmation = "Thankyou for your message - we'll be in touch shortly"
-            
+
         #T = current.T
 
         form = DIV(
@@ -569,7 +569,7 @@ class contact():
                 s3.scripts.append("http://ajax.aspnetcdn.com/ajax/jquery.validate/1.9/jquery.validate.js")
             else:
                 s3.scripts.append("http://ajax.aspnetcdn.com/ajax/jquery.validate/1.9/jquery.validate.min.js")
-               
+
         else:
             if s3.debug:
                 s3.scripts.append("/%s/static/scripts/jquery.validate.js" % request.application)
@@ -706,7 +706,7 @@ class organisations():
             "acronym",
             (T("Type"), "organisation_type_id"),
             "year",
-            #"address",
+            "address",
             (T("Notes"), "comments")
         ]
         return (s3request, field_list)
