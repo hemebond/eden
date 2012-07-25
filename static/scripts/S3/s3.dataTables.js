@@ -4,6 +4,30 @@
  * Dynamic constants (e.g. Internationalised strings) are set in server-generated script
  */
 
+function toggle_cell_truncation(cell, event) {
+    /*
+     * Truncates the string contents of a cell
+     * Adds a clickable ellipsis or full-stop to toggle the truncation
+     */
+    var cell = $(cell);
+    var text = cell.text();
+    var max_string_length = 60;
+
+    if (cell.hasClass("truncated")) {
+	// replaces the currently truncated string with the original data
+	// the period can be clicked to truncate again
+	var full_text = S3.dataTables.instance.fnGetData(cell.get(0));
+	cell.html(full_text).append('<a class="ellipsis" title="' + _("Truncate text") + '">.</a>');
+	cell.removeClass("truncated");
+    }
+    else if (text.length > max_string_length) {
+	// truncates the cell text and adds an ellipsis
+	var truncated_text = text.substring(0, max_string_length);
+	cell.html(truncated_text).append('<a class="ellipsis" title="' + _("Show full text") + '">&#8230;</a>');
+	cell.addClass("truncated");
+    }
+}
+
 $(document).ready(function() {
     /* dataTables handling */
     // Create an array for the column settings (this is required, otherwise the column widths don't autosize)
@@ -307,7 +331,7 @@ $(document).ready(function() {
         }
     }
 
-    $('.dataTable').dataTable({
+    S3.dataTables.instance = $('.dataTable').dataTable({
         // @ToDo: Remember the pagination size without remembering the page number across tables as otherwise we can be misled to thinking we have no search results!
         //'bStateSave': true,
         'sDom': sDom,
@@ -417,6 +441,14 @@ $(document).ready(function() {
                     }
                 }
             }
+
+	    // if the cell only contains a string,
+	    // truncate it if it's too long.
+	    for (var i=1; i < nRow.children.length; i++) {
+		if (nRow.children[i].children.length == 0) {
+		    toggle_cell_truncation(nRow.children[i]);
+		}
+	    }
             return nRow;
         }, // end of fnRowCallback
         "fnDrawCallback": function(oSettings) {
@@ -483,6 +515,12 @@ $(document).ready(function() {
 
         evt.preventDefault();
     }); */
+
+    // Clicking on the ellipsis or full-stop in a cell toggles the truncation
+    $("table.dataTable").on("click", "a.ellipsis", function(event) {
+	var cell = $(this).closest("td");
+	toggle_cell_truncation(cell.get(0));
+    });
 });
 
 function s3_gis_search_layer_loadend(event) {

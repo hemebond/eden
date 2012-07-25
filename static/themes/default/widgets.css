@@ -275,6 +275,10 @@ span.dataTable-btn:hover {
 	background-color: #EFEFEF;
 }
 
+table.dataTable a.ellipsis {
+    cursor: pointer;
+}
+
 table.importItem {
     display: none;
 }
