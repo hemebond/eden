@@ -1,0 +1,10 @@
+{{lbl=form.custom.label}}
+{{wid=form.custom.widget}}
+{{cmt=form.custom.comment}}
+{{if wid[f]:}}
+    <tr>
+        <td class="w2p_fl">{{=lbl[f]}}</td>
+        <td class="w2p_fw">{{v=wid[f]}}{{if hasattr(v,'xml'):}}{{=XML(v.xml())}}{{else:}}{{=XML(v)}}{{pass}}</td>
+        <td class="w2p_fc">{{=cmt[f]}}</td>
+    </tr>
+{{pass}}

@@ -1,0 +1,162 @@
+{{extend "layout.html"}}
+
+<style type="text/css">
+    td, th {
+	border:1px solid #ccc !important;
+    }
+</style>
+
+{{=H1(T("Add Project"))}}
+{{form = project_form}}
+{{lbl=form.custom.label}}
+{{wid=form.custom.widget}}
+{{cmt=form.custom.comment}}
+<table>
+<thead>
+<th>field</th>
+<th>label</th>
+<th>widget</th>
+<th>record</th>
+<th>dspval</th>
+<th>inpval</th>
+</thead>
+<tbody>{{for f in form.fields:}}
+<tr>
+<td>{{=f}}</td>
+<td>{{=lbl[f]}}</td>
+<td>{{v=wid[f]}}{{if hasattr(v,'xml'):}}{{=v.xml()}}{{else:}}{{=v}}{{pass}}</td>
+<td>{{if form.record:}}{{=form.record[f]}}{{pass}}</td>
+</tr>{{pass}}
+<tr><td colspan=5><b>full form:</b>{{=dir(form)}}</td></tr>
+</tbody>
+</table><hr>
+
+<h2>Submitted variables</h2>
+{{=BEAUTIFY(request.vars)}}
+<h2>Accepted variables</h2>
+{{=BEAUTIFY(project_form.vars)}}
+<h2>Errors in form</h2>
+{{=BEAUTIFY(project_form.errors)}}
+
+<form method="post" action="" enctype="multipart/form-data">
+    <table>
+	<tbody>
+	    {{form = project_form}}
+	    {{for f in ["name", "status", "start_date", "end_date", "countries_id", "multi_hazard_id", "multi_theme_id", "objectives"]:}}
+		{{include "../private/templates/DRRPP/views/_formfield.html"}}
+	    {{pass}}
+
+	    <tr>
+		<td class="w2p_fl">{{=T("Outputs")}}</td>
+		<td class="w2p_fw">
+		    {{formset = formsets["project_outputs"]}}
+		    {{include "../private/templates/DRRPP/views/_formset.html"}}
+		</td>
+		<td class="w2p_fc"></td>
+	    </tr>
+
+	    {{form = project_form}}
+	    {{for f in ["hfa", "lead_organisation"]:}}
+		{{include "../private/templates/DRRPP/views/_formfield.html"}}
+	    {{pass}}
+
+
+	    <tr>
+		<td class="w2p_fl">{{=T("Partner Organizations")}}</td>
+		<td class="w2p_fw">
+		    {{formset = formsets["partner_organisations"]}}
+		    {{include "../private/templates/DRRPP/views/_formset.html"}}
+		</td>
+		<td class="w2p_fc"></td>
+	    </tr>
+
+	    <tr>
+		<td class="w2p_fl">{{=T("Donor(s)")}}</td>
+		<td class="w2p_fw">
+		    {{formset = formsets["donor_organisations"]}}
+		    {{include "../private/templates/DRRPP/views/_formset.html"}}
+		</td>
+		<td class="w2p_fc"></td>
+	    </tr>
+
+	    {{form = project_form}}
+	    {{for f in ["budget", "currency", "human_resource_id", "contact_organisation", "contact_email"]:}}
+		{{include "../private/templates/DRRPP/views/_formfield.html"}}
+	    {{pass}}
+
+	    <tr>
+		<td class="w2p_fl">{{=T("Files")}}</td>
+		<td class="w2p_fw">
+		    {{formset = formsets["project_files"]}}
+		    {{include "../private/templates/DRRPP/views/_formset.html"}}
+		</td>
+		<td class="w2p_fc"></td>
+	    </tr>
+
+	    <tr>
+		<td class="w2p_fl">{{=T("Links")}}</td>
+		<td class="w2p_fw">
+		    {{formset = formsets["project_links"]}}
+		    {{include "../private/templates/DRRPP/views/_formset.html"}}
+		</td>
+		<td class="w2p_fc"></td>
+	    </tr>
+
+	    {{form = project_form}}
+	    {{for f in ["comments", "parent_project"]:}}
+		{{include "../private/templates/DRRPP/views/_formfield.html"}}
+	    {{pass}}
+	</tbody>
+    </table>
+    <input type="submit" value="Save">
+    {{=project_form.hidden_fields()}}
+</form>
+
+<script type="text/javascript">
+    function update_formset_total_forms(table) {
+	/*
+	 * Updates the formset counter
+	 */
+	var table = $(table);
+	var re = /_(\d+)_/;
+
+	table.children("tbody").children().each(function(row_index) {
+	    var row = $(this);
+	    row.find("[name]").each(function(field_index) {
+		$(this).attr("name", this.name.replace(re, "_"+row_index+"_"));
+		$(this).attr("id", this.id.replace(re, "_"+row_index+"_"));
+	    });
+	});
+	table.prev("input").attr("value", table.children("tbody").children().length);
+    }
+
+    function addremove_formset_row(event) {
+	/*
+	 * Adds and removes rows from the formset
+	 * and gets the counter updated
+	 */
+	var table = $(event.delegateTarget);
+	var button = $(this);
+	var row = button.closest("tr");
+
+	if (button.hasClass("remove")) {
+	    row.remove()
+	}
+	else if (button.hasClass("add")) {
+	    row.clone().insertAfter(row);
+	    button.removeClass("add").addClass("remove");
+	}
+
+	// Update formset counter
+	update_formset_total_forms(table.get(0));
+    }
+
+    $(document).ready(function() {
+	$("table.formset").on("click", "a.formset-row-widget", addremove_formset_row)
+
+	// Set the counter for all the formsets
+	$("table.formset").each(function(index) {
+	    update_formset_total_forms(this);
+	});
+    });
+</script>

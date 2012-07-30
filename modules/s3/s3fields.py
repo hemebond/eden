@@ -69,7 +69,7 @@ from gluon.storage import Storage
 from s3utils import S3DateTime, s3_auth_user_represent, s3_auth_group_represent
 from s3validators import IS_ONE_OF
 from s3widgets import S3DateWidget, S3AutocompleteWidget
-    
+
 try:
     db = current.db
 except:

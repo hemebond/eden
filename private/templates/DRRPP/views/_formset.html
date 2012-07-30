@@ -1,0 +1,25 @@
+<input type="hidden" name="{{=formset[0].table}}_TOTAL_FORMS" value="">
+<table class="formset">
+    <thead>
+        <tr>
+            {{for f in formset[0].fields:}}
+                {{if formset[0].custom.widget[f]:}}
+                    <th>{{=formset[0].custom.label[f]}}</th>
+                {{pass}}
+            {{pass}}
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {{for form in formset:}}
+            <tr>
+                {{for f in form.fields:}}
+                    {{if form.custom.widget[f]:}}
+                        <td>{{=form.custom.widget[f]}}</td>
+                    {{pass}}
+                {{pass}}
+                <td><a class="formset-row-widget add">+</a>{{=form.hidden_fields()}}</td>
+            </tr>
+        {{pass}}
+    </tbody>
+</table>

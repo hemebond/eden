@@ -14,6 +14,12 @@ from gluon import *
 from gluon.storage import Storage
 from s3 import *
 
+from eden.layouts import S3AddResourceLink
+from eden.org import org_organisation_represent
+from eden.project import project_project_represent, project_project_represent_no_link
+import forms
+import forms2
+
 # =============================================================================
 def INPUT_BTN(**attributes):
     """
@@ -629,6 +635,289 @@ class contact():
         response.title = "Contact | DRR Project Portal"
         return dict(form=form)
 
+
+# =============================================================================
+class test2():
+    """
+    """
+
+    def __call__(self):
+        settings = current.deployment_settings
+        response = current.response
+        request = current.request
+        s3db = current.s3db
+        db = current.db
+        T = current.T
+
+        view = path.join(request.folder, "private", "templates",
+                         "DRRPP", "views", "project_create_2.html")
+        try:
+            # Pass view as file not str to work in compiled mode
+            response.view = open(view, "rb")
+        except IOError:
+            from gluon.http import HTTP
+            raise HTTP("404", "Unable to open Custom View: %s" % view)
+
+        # project form with custom fields included
+        project_form = SQLFORM.factory(
+            s3db.project_project.name,
+            s3db.project_project.code,
+            s3db.project_project.status,
+            s3db.project_project.start_date,
+            s3db.project_project.end_date,
+            s3db.project_project.countries_id,
+            s3db.project_project.multi_hazard_id,
+            s3db.project_project.multi_theme_id,
+            s3db.project_project.objectives,
+            Field(
+                "activities",
+                "text",
+                label=T("Activities")
+            ),
+            # outputs
+            s3db.project_project.hfa,
+            #s3db.project_project.rfa,
+            Field(
+                "lead_organisation",
+                label=T("Lead Organisation")
+            ),
+            # partner organisations
+            # donors
+            s3db.project_project.budget,
+            s3db.project_project.currency,
+            Field(
+                "contact_name",
+                label=T("Focal Person")
+            ),
+            Field(
+                "contact_organisation",
+                label=T("Organisation")
+            ),
+            Field(
+                "contact_email",
+                label=T("Email")
+            ),
+            # files
+            # links
+            s3db.project_project.comments,
+            Field(
+                "parent_project",
+                label=T("Main Project"),
+                comment=T("If this project is implemented as part of a \
+                           programme or another poject, select it here.")
+            ),
+        )
+
+        # formsets
+        formsets = {}
+
+        formsets["outputs"] = SQLFORM.factory(
+            Field(
+                "output",
+                label=T("Output")
+            ),
+            Field(
+                "status",
+                label=T("Status")
+            )
+        )
+
+        import copy
+        formsets["partners"] = []
+        total_forms = int(request.post_vars.get("partners_TOTAL_FORMS", 1))
+        for x in range(0, total_forms):
+            prefix = "partners_%s_" % x
+
+            test = ["test", "blewrg", "raw"]
+
+            form = SQLFORM.factory(
+                    Field(
+                        "%sorganisation_id" % prefix,
+                        "string",
+                        label=T("Organisation"),
+                        #~ requires=[IS_IN_SET(
+                            #~ db, "org_organisation.id",
+                            #~ org_organisation_represent,
+                            #~ orderby="org_organisation.name",
+                            #~ sort=True)]
+                        requires=IS_IN_DB(db, db.org_organisation.id, zero="huh?")
+                    ),
+                    Field(
+                        "%scomments" % prefix,
+                        label=T("Comments"),
+                    ),
+                    table_name="id"
+                )
+
+            if request.post_vars:
+                if any(request.post_vars[field] for field in form.fields):
+                    #print request.post_vars
+                    #post = copy.deepcopy(request.post_vars)
+                    post = dict([(key, value) for key, value in request.post_vars.items()])
+                    print "post: %s" % post
+
+                    # if organisation is a string, do the organisation lookup
+                    try:
+                        post["organisation_id"] = int(request.post_vars["%sorganisation_id" % prefix])
+                    except ValueError:
+                        post["organisation_id"] = s3db.org_organisation.insert(request.post_vars["%sorganisation_id" % prefix])
+
+                    if form.accepts(post, formname=None, keepvalues=True):
+                        print "%s: accepted" % prefix
+
+                        # create new dict to pass to insert
+                        clean_vars = dict([(field.replace(prefix, ""), value) for field, value in request.post_vars.items() if field.startswith(prefix)])
+                        clean_vars["role"] = "2" # partner
+                        print "clean_vars: %s" % clean_vars
+
+                        table_form = SQLFORM(s3db.project_organisation)
+
+                        if table_form.accepts(clean_vars, formname=None):
+                            print "Table form accepted"
+                            # insert into database
+                        elif table_form.errors:
+                            print table_form.errors
+                    elif form.errors:
+                        # form has errors
+                        project_form.errors.update(form.errors)
+                    else:
+                        # do nothing
+                        pass
+                else:
+                    # all fields are blank
+                    continue
+
+            formsets["partners"].append(form)
+
+
+
+
+        formsets["donors"] = [SQLFORM.factory(
+            Field(
+                "donor_agency",
+                label=T("Agency")
+            ),
+            Field(
+                "donor_amount",
+                label=T("Amount"),
+                length=16
+            ),
+            s3_currency("donor_currency", writable=True)
+        )]
+
+        formsets["files"] = SQLFORM.factory(
+            Field(
+                "files_file",
+                label=T("File"),
+                type="upload"
+            ),
+            Field(
+                "files_comment",
+                label=T("Comment")
+            )
+        )
+
+        formsets["links"] = SQLFORM.factory(
+            Field(
+                "links_url",
+                label=T("URL")
+            ),
+            Field(
+                "links_comment",
+                label=T("Comment")
+            )
+        )
+
+        return dict(project_form=project_form, formsets=formsets)
+
+
+# =============================================================================
+class test():
+    """
+    """
+
+    def __call__(self):
+        response = current.response
+        request = current.request
+        s3db = current.s3db
+        db = current.db
+        T = current.T
+
+        view = path.join(request.folder, "private", "templates",
+                         "DRRPP", "views", "project_create.html")
+        try:
+            # Pass view as file not str to work in compiled mode
+            response.view = open(view, "rb")
+        except IOError:
+            from gluon.http import HTTP
+            raise HTTP("404", "Unable to open Custom View: %s" % view)
+
+        main_form = forms.project_form()
+
+        formsets = {}
+        fs = [
+            ("project_outputs", forms.project_outputs_form),
+            ("partner_organisations", forms.partner_organisations_form),
+            ("donor_organisations", forms.donor_organisations_form),
+            ("project_files", forms.project_files_form),
+            ("project_links", forms.project_links_form),
+        ]
+
+        for name, form_function in fs:
+            quantity = int(request.vars.get("%s_TOTAL_FORMS" % name, 1))
+            formsets[name] = forms.formset_factory(name, form_function, quantity)
+
+        if request.post_vars:
+            clean_vars = dict([(key, value) for key, value in request.post_vars.items() if value])
+            print clean_vars
+
+            if main_form.accepts(clean_vars, keepvalues=True, formname=None):
+                #project_id = s3db.project_project.insert(**s3db.project_project._filter_fields(main_form.vars))
+
+                # insert the lead organisation
+                #s3db.project_organisation.insert(organisation_id=project_form.vars.lead_organisation, project_id=project_id, role=1)
+
+                response.flash = "Form project_form accepted"
+                #redirect(URL(c="project", f="project", args=project_id))
+            elif main_form.errors:
+                print "Has errors: %s" % main_form.errors
+            else:
+                print "no processing"
+
+            for name, form_func in fs:
+                for index, form in enumerate(formsets[name]):
+                    prefix = "%s_%s_" % (name, index)
+                    #formset_vars = dict([(key.replace(prefix, ""), value) for key, value in clean_vars.items() if key.startswith(prefix)])
+                    formset_vars = Storage([(key, value) for key, value in clean_vars.items() if key.startswith(prefix)])
+
+                    for field, value in formset_vars.items():
+                        field = field.replace(prefix, "")
+                        formset_vars[field] = value
+
+                    print "formset_vars %s: %s" % (prefix, formset_vars)
+
+                    if formset_vars:
+                        if form.accepts(formset_vars, keepvalues=True, formname=None):
+                            print "formset form %s accepted" % name
+                            try:
+                                # if project_id is not None
+                                # save to database
+                                pass
+                            except KeyError:
+                                pass
+                        elif form.errors:
+                            print "formset form errors: %s" % form.errors
+                            for field, error in form.errors.items():
+                                form.errors["%s%s" % (prefix, field)] = error
+                        else:
+                            # ignored
+                            pass
+                        print "form.vars: %s" % form.vars
+
+        response.title = "Add Project | DRR Project Portal"
+        return dict(project_form=main_form, formsets=formsets)
+
+
 # =============================================================================
 class organisations():
     """
@@ -659,22 +948,13 @@ class organisations():
         # URL format breaks the REST controller conventions
         request.args.pop()
 
-        if table is None or table == "regional":
-            s3request, field_list = self._regional()
+        # Regional Organisations
+        s3request, field_list = self._regional()
+        tables.append(self._table("regional", s3request.resource, field_list))
 
-            if table is None:
-                tables.append(self._table("regional", s3request.resource, field_list))
-
-        if table is None or table == "groups":
-            s3request, field_list = self._groups()
-
-            if table is None:
-                tables.append(self._table("groups", s3request.resource, field_list))
-
-        if table is not None:
-            current.s3db.configure(s3request.resource.tablename,
-                                   list_fields = field_list)
-            return s3request()
+        # Groups
+        s3request, field_list = self._groups()
+        tables.append(self._table("groups", s3request.resource, field_list))
 
         return dict(tables=tables,
                     appname=request.application)
@@ -691,8 +971,7 @@ class organisations():
         s3request = current.manager.parse_request("org",
                                                   "organisation",
                                                   extension="aadata")
-        f = (S3FieldSelector("project.id") != None) & \
-            (S3FieldSelector("organisation_type_id$name").anyof(["Regional Organisation"]))
+        f = (S3FieldSelector("organisation_type_id$name").anyof(["Regional Organisation"]))
         s3request.resource.add_filter(f)
 
         field_list = [
@@ -719,8 +998,7 @@ class organisations():
         s3request = current.manager.parse_request("org",
                                                   "organisation",
                                                   extension="aadata")
-        f = (S3FieldSelector("project.id") != None) & \
-            (S3FieldSelector("organisation_type_id$name").anyof(["Committees / Mechanism / Forum"]))
+        f = (S3FieldSelector("organisation_type_id$name").anyof(["Forum"]))
         s3request.resource.add_filter(f)
 
         field_list = [

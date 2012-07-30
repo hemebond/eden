@@ -83,6 +83,9 @@ def project():
                     r.method = "search"
                     # If just a few Projects, then a List is sufficient
                     #r.method = "list"
+                elif r.method == "create":
+                    # Creating a new project
+                    pass
             else:
                 if r.component_name == "organisation":
                     if r.method != "update":
