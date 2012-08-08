@@ -1727,7 +1727,7 @@ class S3Project3WModel(S3Model):
             msg_list_empty = T("No Organizations for Project(s)"))
 
         # Search Method?
-        
+
         # Report Options
         report_fields = ["project_id",
                          "organisation_id",
@@ -3308,7 +3308,7 @@ class S3ProjectTaskModel(S3Model):
             return row.name
         elif not id:
             return current.messages.NONE
-            
+
         db = current.db
         table = db.project_milestone
         record = db(table.id == id).select(table.name,
@@ -3334,7 +3334,7 @@ class S3ProjectTaskModel(S3Model):
                 instance_type = None
         else:
             return current.messages.NONE
-        
+
         db = current.db
         s3db = current.s3db
         if not instance_type:
@@ -3371,7 +3371,7 @@ class S3ProjectTaskModel(S3Model):
                 return row.name
         elif not id:
             return current.messages.NONE
-            
+
         db = current.db
         table = db.project_task
         r = db(table.id == id).select(table.name,

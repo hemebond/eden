@@ -39,6 +39,8 @@ def create():
 def project():
     """ RESTful CRUD controller """
 
+    from s3.s3widgets import S3InlineComponentWidget
+
     if "tasks" in request.get_vars:
         # Return simplified controller to pick a Project for which to list the Open Tasks
         table = s3db.project_project
@@ -74,6 +76,10 @@ def project():
         doc_table.organisation_id.readable = doc_table.organisation_id.writable = False
         doc_table.person_id.readable = doc_table.person_id.writable = False
         doc_table.location_id.readable = doc_table.location_id.writable = False
+
+    # rename "comments" to "activities" for DRRPP
+    if settings.get_template() == "DRRPP":
+        s3db.project_project.comments.label = T("Activities")
 
     # Pre-process
     def prep(r):
@@ -187,10 +193,75 @@ def project():
                     s3mgr.crud.action_buttons(r,
                                               read_url=read_url,
                                               update_url=update_url)
+
+                if r.method == "create":
+                    # Customising the form for DRRPP
+                    if settings.get_template() == "DRRPP" and "form" in output:
+                        form = output["form"][0]
+
+                        # rfa priorities
+                        rfa = SQLFORM.factory(s3db.project_drrpp.rfa)[0][0]
+                        form.insert(-8, TR(rfa[0], TD("")))
+                        form.insert(-8, TR(rfa[1], rfa[2]))
+
+                        # lead organisation
+                        lorg = SQLFORM.factory(
+                            Field(
+                                "lead_organisation",
+                                label=T("Lead Organisation"),
+                                requires=s3db.project_organisation.organisation_id.requires,
+                                represent=s3db.project_organisation.organisation_id.represent,
+                                comment=s3db.project_organisation.organisation_id.comment,
+                                widget=s3db.project_organisation.organisation_id.widget
+                            )
+                        )[0][0]
+                        form.insert(-8, TR(lorg[0], TD("")))
+                        form.insert(-8, TR(lorg[1], lorg[2]))
+
+                        db.project_organisation.comments.widget = SQLFORM.widgets.string.widget
+                        # partner organisations
+                        porg = SQLFORM.factory(
+                            Field(
+                                "partner_organisations",
+                                label=T("Partner Organisations"),
+                                widget=S3InlineComponentWidget(
+                                    link_table_name="project_organisation",
+                                    link_field_name="project_id",
+                                    column_fields=[
+                                        "organisation_id",
+                                        "comments"
+                                    ]
+                                ).widget
+                            ),
+                            table_name="project_organisation"
+                        )[0][0]
+                        form.insert(-8, TR(porg[0], TD("")))
+                        form.insert(-8, TR(porg[1], porg[2]))
+
+                        db.doc_document.comments.widget = SQLFORM.widgets.string.widget
+                        docs = SQLFORM.factory(
+                            Field(
+                                "files",
+                                label=T("Files"),
+                                widget=S3InlineComponentWidget(
+                                    link_table_name="doc_document",
+                                    link_field_name="project_id",
+                                    column_fields=[
+                                        "file",
+                                        "comments"
+                                    ]
+                                ).widget
+                            ),
+                            table_name="doc_document"
+                        )[0][0]
+                        form.insert(-8, TR(docs[0], TD("")))
+                        form.insert(-8, TR(docs[1], docs[2]))
             elif r.component_name == "beneficiary":
                     # Set the minimum end_date to the same as the start_date
                     s3.jquery_ready.append(
 '''S3.start_end_date('project_beneficiary_start_date','project_beneficiary_end_date')''')
+
+
         return output
     s3.postp = postp
 
