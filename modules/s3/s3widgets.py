@@ -3715,4 +3715,505 @@ jQuery(document).ready(function(){jQuery('#%s_kv_pairs').kv_pairs('%s','%s','%s'
 
         return TAG[""](UL(*items, **attributes), script)
 
+
+# =============================================================================
+class JSON(INPUT):
+    """
+    """
+
+    def validate(self):
+        name = self["_name"]
+        if not name:
+            return True
+
+        name = str(name)
+
+        json_str = self.request_vars.get(name, None)
+
+        if not json_str:
+            value = self["existing_value"]
+        elif not "link_field_name" in self.attributes:
+            value = self.process(json_str, self["existing_value"])
+
+            # This will be an autocomplete (not multi select),
+            # therefore extract value from list
+            if value:
+                value = value[0]
+        else:
+            # If link_field_name exists S3Multiselect, _process_json will
+            # require the record id, therefore it must be called from
+            # the onaccept, after the record is created.
+            if self["existing_value"]:
+                # ERROR - this causes errors if
+                # self["existing_value"] contains '
+                value =  "'%s',%s" % (self["existing_value"], json_str)
+            else:
+                value = json_str
+
+    def onaccept(self, link_field_value, json_request):
+        """
+        """
+        db = current.db
+
+        json_str = json_request.post_vars.get(self["_name"], None)
+
+        if json_str:
+            value = self.process(json_str,
+                                 self["existing_value"],
+                                 link_field_value=link_field_value,
+                                 json_request=json_request)
+            value = "|".join(value)
+            update_dict = {self["_name"]: value}
+            db(db[self["table_name"]].id == link_field_value).update(**update_dict)
+
+    def process(self,
+                json_str,
+                existing_value="",
+                link_field_value=None,
+                json_request=None):
+        """
+        """
+        db = current.db
+
+        json_table = self.attributes["json_table"]
+
+        if existing_value:
+            existing_values = s3_split_multi_value(existing_value)
+
+            for id in existing_values:
+                id = str(id)
+
+                if id not in values:
+                    values.append(id)
+
+        link_field_name = self.attributes.get("link_field_name", None)
+
+        try:
+            json_data = eval(json_str)
+        except:
+            print "JSON string is invalid"
+            print json_str
+            return None
+
+        # If there is only one JSON object, make it iterable
+        if not isinstance(json_data, tuple):
+            json_data = [json_data]
+
+        for json_record in json_data:
+            # This is to handle the existing values -
+            # fix if the validation fails on another field
+            # and there is no "on_accept" to save the JSON.
+            if isinstance(json_record, (tuple, list)):
+                json_record = int(json_record[0])
+
+            if isinstance(json_record, int):
+                id = str(json_record)
+
+                if id not in values:
+                    values.append(id)
+
+                continue
+
+            if isinstance(json_record, basestring):
+                ids = s3_split_multi_value(json_record)
+
+                for id in ids:
+                    if id not in values:
+                        values.append(id)
+
+                continue
+
+            json_record = Storage(json_record)
+
+            # insert value to link this record back to the
+            # record currently being saved
+            if link_field_name:
+                json_record[link_field_name] = link_field_value
+
+            query = (json_table.deleted == False)
+
+            for field, value in json_record.items():
+                if isinstance(value, dict):
+                    # recurse through this JSON data
+                    # TODO - This doesn't work with nested multiselect,
+                    # unless we access it's existing value.
+                    # This could be done by doing the recurse AFTER the add...
+                    # but then we would still need to get the variables out...
+                    recurse_table_name = json_table[field].type[10:]
+
+                    value = JSON(json_table=db[recurse_table_name])\
+                        .process(str(value))
+
+                    if value:
+                        value = value[0]
+
+                    json_record[field] = value
+
+                if value and field == "file":
+                    f = json_request.post_vars[value]
+
+                    if hasattr(f, "file"):
+                        (source_file, original_filename) = (f.file, f.filename)
+                    elif isinstance(f, basestring):
+                        ### do not know why this happens, it should not
+                        (source_file, original_filename) = \
+                            (cStringIO.StringIO(f), "file.txt")
+
+                    filename = current.s3db.doc_document.file.store(source_file,
+                                                                    original_filename)
+
+                    json_record[field] = value = filename
+
+                #build query to test if this record is already in the DB
+                #Weird: Query & bool OK; bool & Query NOT!
+                #if type(query).__name__ == "bool":
+                #    query = (json_table[field] == value) & query
+                #else:
+                query = query & (json_table[field] == value)
+
+            if "id" not in json_record:
+                # Add new record
+                # Search for the value existing in the table already
+                matching_row = db(query).select()
+
+                if matching_row:
+                    id = matching_row[0].id
+                else:
+                    id = json_table.insert(**json_record)
+
+                id = str(id)
+
+                if id not in values:
+                    values.append(id)
+            else:
+                # Delete or update
+                id = json_record.id
+                del json_record.id
+
+                if json_record:
+                    db(json_table.id == id).update(**json_record)
+
+                id = str(id)
+
+                if json_record.deleted and id in values:
+                    values.remove(id)
+                elif id not in values:
+                    values.append(id)
+
+        return values
+
+
+# =============================================================================
+class S3InlineComponentWidget(FormWidget):
+    def __init__(self,
+                 link_table_name,
+                 link_field_name,
+                 column_fields=None,
+                 represent_fields=None,
+                 represent_field_delim="-",
+                 represent_record_delim="; "):
+        """
+        """
+        s3db = current.s3db
+        db = current.db
+
+        self.link_table_name = link_table_name
+        self.link_field_name = link_field_name
+
+        if column_fields:
+            self.column_fields = column_fields
+        else:
+            self.column_fields = [field.name for field
+                                             in s3db[link_table_name]
+                                             if field.name != link_field_name
+                                             and field.name != "id"
+                                             and field.writable]
+
+        if represent_fields:
+            self.represent_fields = represent_fields
+        else:
+            self.represent_fields = [self.column_fields[0]]
+
+        self.column_fields_represent = {}
+        for fieldname in self.column_fields:
+            self.column_fields_represent[fieldname] = current.s3db[link_table_name][fieldname].represent
+
+    def widget(self, field, value):
+        """
+        """
+        db = current.db
+        link_table = current.s3db[self.link_table_name]
+
+        widget_id = str(field).replace(".", "_")
+
+        input_json = JSON(json_table=link_table,
+                          table_name=str(field).split(".")[0],
+                          link_field_name=self.link_field_name,
+                          existing_value=value,
+                          _id="%s_json" % widget_id,
+                          _name=field.name,
+                          _style="display:none;")
+
+        self.onaccept = input_json.onaccept #fubar
+
+        header_row = []
+        input_row = []
+
+        for fieldname in self.column_fields:
+            field = link_table[fieldname]
+
+            header_row.append(
+                TD(
+                    link_table[fieldname].label,
+                    _class="s3-inline-component-widget-label"
+                )
+            )
+
+            input_widget = field.widget
+
+            if not input_widget:
+                if field.type.startswith("reference"):
+                    input_widget = OptionsWidget.widget
+                else:
+                    print field.type
+                    input_widget = SQLFORM.widgets[field.type].widget
+
+            input_element = input_widget(field,
+                                         None,
+                                         _id="%s_%s" % (widget_id, fieldname),
+                                         _name=None)
+
+            # Insert the widget id in front of the element id
+            #input_element.__setitem__(
+            #    "_id",
+            #    widget_id + "_" + column_field # input_element.__getitem__("_id")
+            #)
+
+            input_row.append(input_element)
+
+        widget_rows = [TR(header_row)]
+
+        if isinstance(value, basestring):
+            if "{" in value:
+                value = eval(value)
+
+        if isinstance(value, (tuple, list)):
+            values = value
+        else:
+            values = [value]
+
+        for value in values:
+            if isinstance(value, (tuple, list)):
+                value = str(value[0])
+
+            if isinstance(value, basestring):
+                ids = s3_split_multi_value(value)
+
+                for id in ids:
+                    # We should put a check here to make sure we don't double display rows
+                    if id:
+                        row = link_table(id)
+
+                        if row:
+                            widget_rows.append(
+                                self.generate_row(
+                                    widget_id,
+                                    id,
+                                    column_fields=self.column_fields,
+                                    column_fields_represent=self.column_fields_represent,
+                                    row=row,
+                                    is_dummy_row=False
+                                )
+                            )
+            elif isinstance(value, dict):
+                if "deleted" not in value.keys():
+                    widget_rows.append(
+                        self.generate_row(
+                            widget_id,
+                            "New",
+                            column_fields=self.column_fields,
+                            column_fields_represent=self.column_fields_represent,
+                            row=value,
+                            is_dummy_row=False
+                        )
+                    )
+
+        # Get the current value to display rows for existing data.
+        ids = s3_split_multi_value(value)
+
+        input_row.append(
+            TD(
+                A(
+                    SPAN(
+                        "Add",
+                        _class="s3-inline-component-widget-add-button"
+                    ),
+                    _id="%s_add" % widget_id,
+                    _href="javascript:void(0)",
+                    _class="s3-inline-component-widget-add-cell"
+                )
+            )
+        )
+
+        widget_rows += [
+            TR(
+                _id="%s_input_row" % widget_id,
+                _class="s3-inline-component-widget-input-row",
+                *input_row
+            )
+        ]
+
+        dummy_row = self.generate_row(
+            widget_id=widget_id,
+            id="New",
+            column_fields=self.column_fields,
+            is_dummy_row=True
+        )
+
+        js_add_click_args = {
+            "NewRow": str(dummy_row),
+            "ColumnFields": self.column_fields,
+            "WidgetID": widget_id
+        }
+
+        js_add_click = "$('#%s_add').click(function(){S3InlineComponentWidgetAddClick(%s)});" \
+            % (widget_id, str(js_add_click_args))
+
+        js_del_click_args = {
+            "WidgetID": widget_id,
+            "ColumnFields": self.column_fields
+        }
+
+        js_del_click = "$('.%s_delete').on('click', function(){S3InlineComponentWidgetDelClick(this, %s)});" \
+            % (widget_id, str(js_del_click_args))
+
+        # When the form is submitted, click the "add button" - just in case the user forgot to
+        js_submit = "$('form').submit(function(){$('#%s_add').click()});" % widget_id
+
+        widget = TAG[""](
+            input_json,
+            TABLE(
+                _id="%s_rows" % widget_id,
+                _class="s3-inline-component-widget-rows",
+                *widget_rows
+            ),
+            SCRIPT(js_add_click),
+            SCRIPT(js_del_click),
+            SCRIPT(js_submit)
+        )
+
+        # Add the widget script file
+        scripts = current.response.s3.scripts
+
+        script = "/%s/static/scripts/S3/s3.inline_component_widget.js" \
+            % current.request.application
+
+        if script not in scripts:
+            scripts.append(script)
+
+        return widget
+
+    @staticmethod
+    def generate_row(widget_id,
+                     id,
+                     column_fields,
+                     column_fields_represent=None,
+                     row=None,
+                     is_dummy_row=False):
+        """
+            @type id: int
+            @param id: id for the row
+
+            @type column_fields: list
+            @param column_fields: list of field names as strings
+
+            @type column_fields_represent: dict
+            @param column_fields_represent: the functions to find the
+                                            values of the fields in the row
+        """
+
+        row_field_cells = []
+        delete_attr = {
+            "_row_id": id
+        }
+
+        for idx, fieldname in enumerate(column_fields):
+            if is_dummy_row:
+                field_value = "DummyDisplay%s" % idx
+
+                # Attributes to identify row when deleting added row
+                delete_attr["_%s" % fieldname] = "DummyJSON%s" % idx
+            else:
+                if isinstance(row[fieldname], dict):
+                    # Hack to get the rows to display after a failed validation
+                    field_value = row[fieldname].values()[0]
+                elif column_fields_represent[fieldname]: # this is going to crash
+                    field_value = column_fields_represent[fieldname](row[fieldname])
+                else:
+                    field_value = row[fieldname]
+
+            row_field_cells.append(TD(field_value))
+
+        # Delete button
+        row_field_cells.append(
+            TD(
+                A(
+                    SPAN(_class="s3-inline-component-widget-delete-button"),
+                    _href="javascript:void(0)",
+                    _class="s3-inline-component-widget-delete %s_delete" % widget_id,
+                    **delete_attr
+                ),
+                _class="s3-inline-component-widget-delete-button"
+            )
+        )
+
+        return TR(*row_field_cells)
+
+    def represent(self, value):
+        db = current.db
+        link_table = s3db[self.link_table_name]
+
+        ids = s3_split_multi_value(value)
+        record_value_list = []
+        return_list = []
+
+        if ids:
+            rows = db(link_table.id.belongs(ids)).select()
+
+            for row in rows:
+                for field in self.represent_fields:
+                    if link_table[field].represent:
+                        field_value = link_table[field].represent(row[field])
+                    else:
+                        field_value = row[field]
+
+                    if self.represent_record_delim == "P":
+                        field_value = P(field_value)
+
+                    field_value = s3_unicode(field_value)
+
+                    return_list.append(field_value)
+                    return_list.append(self.represent_field_delim)
+
+                if return_list:
+                    return_list.pop() # remove the last delim
+
+                if self.represent_record_delim != "P":
+                    return_list.append(self.represent_record_delim)
+
+            if return_list:
+                if self.represent_record_delim != "P":
+                    return_list.pop() # remove the last delim
+
+                return_value = XML("".join(return_list))
+            else:
+                return_value = None
+
+            if str(return_value):
+                if str(return_value)[0] != "<":
+                    return_value = str(return_value)
+
+            return return_value
+
+
 # END =========================================================================
