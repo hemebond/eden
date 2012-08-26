@@ -42,6 +42,7 @@ except ImportError:
 from gluon import *
 from gluon.serializers import json as jsons
 from gluon.storage import Storage
+from gluon.html import BUTTON
 
 from s3crud import S3CRUD
 from s3navigation import s3_search_tabs
@@ -755,7 +756,7 @@ class S3SearchLocationWidget(S3SearchWidget):
     def __init__(self,
                  field="location_id",
                  name=None, # Needs to be specified by caller
-                 **attr):
+                 ** attr):
         """
             Initialise parent class & make any necessary modifications
         """
@@ -1077,109 +1078,168 @@ class S3Search(S3CRUD):
         return (query, errors)
 
     # -------------------------------------------------------------------------
-    def save_search_widget(self, r, search_vars, **attr):
+    def save_search_widget(self, r, search_vars, search_url, **attr):
         """
             Add a widget to a Search form to allow saving this search to the
             user's profile, to which they can subscribe
         """
 
         T = current.T
-        db = current.db
-        request = self.request
 
-        user_id = current.session.auth.user.id
-        now = request.utcnow.microsecond
-        save_search_btn_id = "save_my_filter_btn_%s" % now
-        save_search_processing_id = "save_search_processing_%s" % now
-        save_search_a_id = "save_search_a_%s" % now
-        arg = "%s/save_search" % user_id
-        save_search_a = DIV(T("View and Subscribe to Saved Searches"),
-                            A(T("Here"),
-                              _href=URL(r=request, c="pr", f="person",
-                                        args=[arg]),
-                              _target="_blank"
-                             ),
-                            ".",
-                        _id=save_search_a_id,
-                        _class="save_search_a"
-                        )
-        search_vars["prefix"] = r.controller
-        search_vars["function"] = r.function
+        person_id = current.auth.s3_user_pe_id(current.auth.user_id)
 
-        table = current.s3db.pr_save_search
-        rows = db(table.user_id == user_id).select(table.ALL)
-        if rows:
-            import cPickle
-            for row in rows:
-                pat = "_"
-                s_v = cPickle.loads(row.search_vars)
-                if ((search_vars["prefix"] == s_v["prefix"]) and \
-                    (search_vars["function"] == s_v["function"])):
-                    s_dict = s_v["criteria"]
-                    if "criteria" in search_vars:
-                        c_dict = search_vars["criteria"]
-                    else:
-                        break
-                    diff = [ k for k in c_dict if k not in s_dict ]
-                    if not len(diff):
-                        flag = 1
-                        for j in s_dict.iterkeys():
-                            if not re.match(pat, j):
-                                if c_dict[j] != s_dict[j]:
-                                    flag = 0
-                                    break
-                        if flag == 1:
-                            return DIV(save_search_a,
-                                       _style="font-size:12px;padding:5px 0px 5px 90px;",
-                                       _id="save_search"
-                                       )
+        save_options = {
+            "url": URL(
+                c="pr",
+                f="saved_search",
+                vars={"format": "s3json"}
+            ),
+            "url_detail": URL(
+                c="pr",
+                f="person",
+                args=[
+                    person_id,
+                    "saved_search",
+                    "<id>",
+                    "update",
+                ]
+            ),
+            "data": json.dumps({
+                "$_pr_saved_search": [
+                    {
+                        "query": search_url,
+                    },
+                ],
+            }),
+        }
 
-        save_search_btn = A("Save Search",
-                            _class="save_search_btn",
-                            _id=save_search_btn_id,
-                            _href="#",
-                            _title=T("Save this search"))
-        save_search_a["_style"] = "display:none;"
-        save_search_processing = IMG(_src="/%s/static/img/ajax-loader.gif" % request.application,
-                                    _id=save_search_processing_id,
-                                    _class="save_search_processing_id",
-                                    _style="display:none;"
-                                    )
-        s_var = {}
-        s_var["save"] = True
-        jurl = URL(r=request, c=r.controller, f=r.function,
-                   args=["search"], vars=s_var)
-        save_search_script = \
-'''$('#%s').live('click',function(){
- $('#%s').show()
- $('#%s').hide()
- $.ajax({
-  url:'%s',
-  data:'%s',
-  success:function(data){
-   $('#%s').show()
-   $('#%s').hide()
-  },
-  type:'POST'
- })
- return false
-})''' % (save_search_btn_id,
-         save_search_processing_id,
-         save_search_btn_id,
-         jurl,
-         json.dumps(search_vars),
-         save_search_a_id,
-         save_search_processing_id)
+        widget = FIELDSET(
+            LEGEND(T("Save Search")),
+            DIV(
+                BUTTON(T("Save this search")),
+            ),
+            DIV(
+                A(
+                    T("View all your saved searches"),
+                    _href=URL(
+                        c="pr",
+                        f="person",
+                        args=[
+                            person_id,
+                            "saved_search",
+                        ]
+                    )
+                ),
+            ),
+            SCRIPT(
+                "S3.search.saveOptions=%s" % json.dumps(save_options)
+            ),
+            _id="save-search"
+        )
 
-        current.response.s3.jquery_ready.append(save_search_script)
-
-        widget = DIV(save_search_processing,
-                     save_search_a,
-                     save_search_btn,
-                     _style="font-size:12px;padding:5px 0px 5px 90px;",
-                     _id="save_search"
-                     )
         return widget
+
+
+#        db = current.db
+#        request = self.request
+#        user_id = current.session.auth.user.id
+#        now = request.utcnow.microsecond
+#        save_search_btn_id = "save_my_filter_btn_%s" % now
+#        save_search_processing_id = "save_search_processing_%s" % now
+#        save_search_a_id = "save_search_a_%s" % now
+#        arg = "%s/save_search" % user_id
+#        save_search_a = DIV(T("View and Subscribe to Saved Searches"),
+#                            A(T("Here"),
+#                              _href=URL(r=request, c="pr", f="person",
+#                                        args=[arg]),
+#                              _target="_blank"
+#                             ),
+#                            ".",
+#                        _id=save_search_a_id,
+#                        _class="save_search_a"
+#                        )
+#        search_vars["prefix"] = r.controller
+#        search_vars["function"] = r.function
+#
+#        table = current.s3db.pr_save_search
+#        rows = db(table.user_id == user_id).select(table.ALL)
+#        if rows:
+#            import cPickle
+#            for row in rows:
+#                pat = "_"
+#                s_v = cPickle.loads(row.search_vars)
+#                if ((search_vars["prefix"] == s_v["prefix"]) and \
+#                    (search_vars["function"] == s_v["function"])):
+#                    s_dict = s_v["criteria"]
+#                    if "criteria" in search_vars:
+#                        c_dict = search_vars["criteria"]
+#                    else:
+#                        break
+#                    diff = [ k for k in c_dict if k not in s_dict ]
+#                    if not len(diff):
+#                        flag = 1
+#                        for j in s_dict.iterkeys():
+#                            if not re.match(pat, j):
+#                                if c_dict[j] != s_dict[j]:
+#                                    flag = 0
+#                                    break
+#                        if flag == 1:
+#                            return DIV(save_search_a,
+#                                       _style="font-size:12px;padding:5px 0px 5px 90px;",
+#                                       _id="save_search"
+#                                       )
+#
+#        save_search_btn = A("Save Search",
+#                            _class="save_search_btn",
+#                            _id=save_search_btn_id,
+#                            _href="#",
+#                            _title=T("Save this search"))
+#        save_search_a["_style"] = "display:none;"
+#        save_search_processing = IMG(_src="/%s/static/img/ajax-loader.gif" % request.application,
+#                                    _id=save_search_processing_id,
+#                                    _class="save_search_processing_id",
+#                                    _style="display:none;"
+#                                    )
+#        s_var = {}
+#        s_var["save"] = True
+#        jurl = URL(
+#            r=request,
+#            c=r.controller,
+#            f=r.function,
+#            args=["search"],
+#            vars=s_var
+#        )
+#        save_search_script = \
+#'''$('#%s').live('click',function(){
+# $('#%s').show()
+# $('#%s').hide()
+# $.ajax({
+#  url:'%s',
+#  data:'%s',
+#  success:function(data){
+#   $('#%s').show()
+#   $('#%s').hide()
+#  },
+#  type:'POST'
+# })
+# return false
+#})''' % (save_search_btn_id,
+#         save_search_processing_id,
+#         save_search_btn_id,
+#         jurl,
+#         json.dumps(search_vars),
+#         save_search_a_id,
+#         save_search_processing_id)
+#
+#        current.response.s3.jquery_ready.append(save_search_script)
+#
+#        widget = DIV(save_search_processing,
+#                     save_search_a,
+#                     save_search_btn,
+#                     _style="font-size:12px;padding:5px 0px 5px 90px;",
+#                     _id="save_search"
+#                     )
+#        return widget
 
     # -------------------------------------------------------------------------
     def search_interactive(self, r, **attr):
@@ -1245,33 +1305,35 @@ class S3Search(S3CRUD):
         simple_form, advanced_form = self.build_forms(r, form_values)
 
         # Check for Load Search
-        if "load" in r.get_vars:
-            search_id = r.get_vars.get("load", None)
-            if not search_id:
-                r.error(400, current.manager.ERROR.BAD_RECORD)
-            r.post_vars = r.vars
-            search_table = s3db.pr_save_search
-            _query = (search_table.id == search_id)
-            record = db(_query).select(record.search_vars,
-                                       limitby=(0, 1)).first()
-            if not record:
-                r.error(400, current.manager.ERROR.BAD_RECORD)
-            import cPickle
-            s_vars = cPickle.loads(record.search_vars)
-            r.post_vars = Storage(s_vars["criteria"])
-            r.http = "POST"
+#        if "load" in r.get_vars:
+#            search_id = r.get_vars.get("load", None)
+#            if not search_id:
+#                r.error(400, current.manager.ERROR.BAD_RECORD)
+#            r.post_vars = r.vars
+#            search_table = s3db.pr_save_search
+#            _query = (search_table.id == search_id)
+#            record = db(_query).select(record.search_vars,
+#                                       limitby=(0, 1)).first()
+#            if not record:
+#                r.error(400, current.manager.ERROR.BAD_RECORD)
+#            import cPickle
+#            s_vars = cPickle.loads(record.search_vars)
+#            r.post_vars = Storage(s_vars["criteria"])
+#            r.http = "POST"
 
         # Process the search forms
-        query, errors = self.process_forms(r,
-                                           simple_form,
-                                           advanced_form,
-                                           form_values)
+        query, errors = self.process_forms(
+            r,
+            simple_form,
+            advanced_form,
+            form_values,
+        )
 
         search_url = None
         if not errors:
             if hasattr(query, "serialize_url"):
-                search_url = r.url(method = "",
-                                   vars = query.serialize_url(resource))
+                search_url = r.url(method="",
+                                   vars=query.serialize_url(resource))
             resource.add_filter(query)
             search_vars = dict(simple=False,
                                advanced=True,
@@ -1294,7 +1356,7 @@ class S3Search(S3CRUD):
 
         # Save Search Widget
         if session.auth and settings.get_save_search_widget():
-            save_search = self.save_search_widget(r, search_vars, **attr)
+            save_search = self.save_search_widget(r, search_vars, search_url, **attr)
         else:
             save_search = DIV()
 
@@ -1997,29 +2059,53 @@ class S3Search(S3CRUD):
         search_vars = json.load(r.body)
         s_vars = {}
 
-        for i in search_vars.iterkeys():
-            if str(i) == "criteria" :
-                s_dict = {}
-                c_dict = search_vars[i]
-                for j in c_dict.iterkeys():
-                    key = str(j)
-                    s_dict[key] = str(c_dict[j])
-                s_vars[str(i)] = s_dict
-            else:
-                key = str(i)
-                s_vars[key] = str(search_vars[i])
+        filters = {}
+        for field_name, value in search_vars["criteria"].items():
+            if value:# and field_name[0] != "_":
+                filters[field_name] = value
 
-        import cPickle
-        search_str = cPickle.dumps(s_vars)
-        table = current.s3db.pr_save_search
-        query = (table.user_id == current.auth.user_id) & \
-                (table.search_vars == search_str)
-        if len(current.db(query).select(table.id)) == 0:
-            new_search = {}
-            new_search["search_vars"] = search_str
-            _id = table.insert(**new_search)
-        msg = "success"
-        return msg
+        if filters:
+            query = URL(r=r, c=r.controller, f=r.function, args="search", vars=filters)
+
+            pe_id = current.auth.s3_user_pe_id(current.auth.user_id)
+            table = current.s3db.pr_saved_search
+
+            new_record_id = table.insert(
+                name=query,
+                pe_id=pe_id,
+                query=query,
+            )
+
+            if new_record_id:
+                person_id = current.auth.s3_logged_in_person()
+                return URL(c="pr", f="person", args=[person_id, "saved_search", new_record_id])
+
+        return
+
+
+#        for i in search_vars.iterkeys():
+#            if str(i) == "criteria" :
+#                s_dict = {}
+#                c_dict = search_vars[i]
+#                for j in c_dict.iterkeys():
+#                    key = str(j)
+#                    s_dict[key] = str(c_dict[j])
+#                s_vars[str(i)] = s_dict
+#            else:
+#                key = str(i)
+#                s_vars[key] = str(search_vars[i])
+#
+#        import cPickle
+#        search_str = cPickle.dumps(s_vars)
+#        table = current.s3db.pr_save_search
+#        query = (table.user_id == current.auth.user_id) & \
+#                (table.search_vars == search_str)
+#        if len(current.db(query).select(table.id)) == 0:
+#            new_search = {}
+#            new_search["search_vars"] = search_str
+#            #_id = table.insert(**new_search)
+#        msg = "success"
+#        return msg
 
 # =============================================================================
 class S3LocationSearch(S3Search):
@@ -2322,7 +2408,7 @@ class S3OrganisationSearch(S3Search):
                 if "org_organisation_branch" in row:
                     query = (table.id == row[btable].organisation_id)
                     parent = db(query).select(table.name,
-                                              limitby = (0, 1)).first()
+                                              limitby=(0, 1)).first()
                     if parent:
                         name = "%s > %s" % (parent.name,
                                             name)
@@ -2332,8 +2418,8 @@ class S3OrganisationSearch(S3Search):
                         name = "%s (%s)" % (name,
                                             acronym)
                 record = dict(
-                    id = row[table].id,
-                    name = name,
+                    id=row[table].id,
+                    name=name,
                     )
                 append(record)
             output = jsons(output)
