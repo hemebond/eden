@@ -1107,7 +1107,9 @@ class S3Search(S3CRUD):
             "data": json.dumps({
                 "$_pr_saved_search": [
                     {
-                        "query": search_url,
+                        "prefix": r.prefix,
+                        "resource": r.function,
+                        "url": search_url,
                     },
                 ],
             }),
@@ -2054,6 +2056,8 @@ class S3Search(S3CRUD):
         """
             Save a Search Filter in the user's profile
             - db.pr_save_search
+
+            @ToDo: Deprecate
         """
 
         search_vars = json.load(r.body)

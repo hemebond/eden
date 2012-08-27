@@ -37,6 +37,7 @@ __all__ = ["S3PersonEntity",
            "S3PersonIdentityModel",
            "S3PersonEducationModel",
            "S3SavedSearch",
+           "pr_saved_search_notification_frequency",
            "S3PersonPresence",
            "S3PersonDescription",
            "S3ImageLibraryModel",
@@ -96,6 +97,7 @@ from gluon import *
 from gluon.dal import Row
 from gluon.storage import Storage
 from gluon.sqlhtml import RadioWidget
+from gluon.languages import translator as T
 
 from ..s3 import *
 from layouts import *
@@ -2019,6 +2021,15 @@ class S3PersonEducationModel(S3Model):
         #
         return Storage()
 
+
+# Used by pr_saved_search
+pr_saved_search_notification_frequency = [
+    ("never", T("Never")),
+    ("hourly", T("Hourly")),
+    ("daily", T("Daily")),
+    ("weekly", T("Weekly")),
+    ("monthly", T("Monthly")),
+]
 # =============================================================================
 class S3SavedSearch(S3Model):
     """ Saved Searches """
@@ -2087,29 +2098,34 @@ class S3SavedSearch(S3Model):
             4: T("Graph"),
         }
 
-        pr_saved_search_notification_frequency = {
-            1: T("Never"),
-            2: T("Hourly"),
-            3: T("Daily"),
-            4: T("Weekly"),
-            5: T("Monthly")
-        }
-
         table = self.define_table(
             "pr_saved_search",
             Field(
+                "prefix",
+                readable=False,
+                writable=False,
+                requires=IS_NOT_EMPTY(),
+            ),
+            Field(
+                "resource",
+                readable=False,
+                writable=False,
+                requires=IS_NOT_EMPTY(),
+            ),
+            Field(
                 "name",
+                requires=IS_NOT_EMPTY(),
             ),
             self.super_link(
                 "pe_id",
                 "pr_pentity",
             ),
             Field(
-                "query",
+                "url",
                 "text",
-                label=T("Query"),
+                label=T("Filters"),
                 writable=False,
-                represent=self.pr_saved_search_query_represent,
+                represent=self.pr_saved_search_url_represent,
             ),
             Field(
                 "notification_format",
@@ -2142,7 +2158,7 @@ class S3SavedSearch(S3Model):
             ),
             Field(
                 "notification_frequency",
-                "integer",
+                "string",
                 label=T("Notification Frequency"),
                 requires=IS_IN_SET(
                     pr_saved_search_notification_frequency,
@@ -2206,18 +2222,21 @@ class S3SavedSearch(S3Model):
         """
 
         # By default we set the name to match the query URL
-        if not form.vars.name and form.vars.query:
-            form.vars.name = form.vars.query
+        if not form.vars.name and form.vars.url:
+            form.vars.name = form.vars.url
 
         # If the pe_id is empty, populate it with the current user pe_id
         if not form.vars.pe_id:
             form.vars.pe_id = current.auth.s3_user_pe_id(current.auth.user_id)
 
     @staticmethod
-    def pr_saved_search_query_represent(value, row=None):
+    def pr_saved_search_url_represent(url):
+        if not url:
+            return
+
         import urlparse
 
-        parsed_url = urlparse.urlparse(value)
+        parsed_url = urlparse.urlparse(url)
         app, prefix, resource = parsed_url.path.split("/")[1:4]
         query = urlparse.parse_qs(parsed_url.query)
 
@@ -2238,6 +2257,7 @@ class S3SavedSearch(S3Model):
                     v = int(v)
                 except:
                     pass
+
                 value[index] = fl.represent(v)
 
             nice_values.append(",".join(value))
