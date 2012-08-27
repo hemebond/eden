@@ -37,7 +37,6 @@ __all__ = ["S3PersonEntity",
            "S3PersonIdentityModel",
            "S3PersonEducationModel",
            "S3SavedSearch",
-           "pr_saved_search_notification_frequency",
            "S3PersonPresence",
            "S3PersonDescription",
            "S3ImageLibraryModel",
@@ -2022,14 +2021,6 @@ class S3PersonEducationModel(S3Model):
         return Storage()
 
 
-# Used by pr_saved_search
-pr_saved_search_notification_frequency = [
-    ("never", T("Never")),
-    ("hourly", T("Hourly")),
-    ("daily", T("Daily")),
-    ("weekly", T("Weekly")),
-    ("monthly", T("Monthly")),
-]
 # =============================================================================
 class S3SavedSearch(S3Model):
     """ Saved Searches """
@@ -2090,7 +2081,6 @@ class S3SavedSearch(S3Model):
 #                       deletable=True,
 #                       list_fields=["search_vars"])
 
-
         pr_saved_search_notification_format = {
             1: T("List"),
             2: T("Report"),
@@ -2098,20 +2088,17 @@ class S3SavedSearch(S3Model):
             4: T("Graph"),
         }
 
+        # Used by pr_saved_search
+        pr_saved_search_notification_frequency = [
+            ("never", T("Never")),
+            ("hourly", T("Hourly")),
+            ("daily", T("Daily")),
+            ("weekly", T("Weekly")),
+            ("monthly", T("Monthly")),
+        ]
+
         table = self.define_table(
             "pr_saved_search",
-            Field(
-                "prefix",
-                readable=False,
-                writable=False,
-                requires=IS_NOT_EMPTY(),
-            ),
-            Field(
-                "resource",
-                readable=False,
-                writable=False,
-                requires=IS_NOT_EMPTY(),
-            ),
             Field(
                 "name",
                 requires=IS_NOT_EMPTY(),
@@ -2121,11 +2108,11 @@ class S3SavedSearch(S3Model):
                 "pr_pentity",
             ),
             Field(
-                "url",
+                "query",
                 "text",
-                label=T("Filters"),
+                label=T("Query"),
                 writable=False,
-                represent=self.pr_saved_search_url_represent,
+                represent=self.pr_saved_search_query_represent,
             ),
             Field(
                 "notification_format",
@@ -2166,14 +2153,16 @@ class S3SavedSearch(S3Model):
                 ),
                 default=1,
                 represent=lambda opt: \
-                    pr_saved_search_notification_frequency.get(
+                    dict(pr_saved_search_notification_frequency).get(
                         opt,
                         current.messages.UNKNOWN_OPT
                     ),
             ),
             Field(
-                "last_executed",
-                readable=False,
+                "last_checked",
+                "datetime",
+                default=datetime.datetime.now(),
+                #readable=False,
                 writable=False,
             ),
             Field(
@@ -2221,49 +2210,62 @@ class S3SavedSearch(S3Model):
             Set values for some fields if left empty
         """
 
-        # By default we set the name to match the query URL
-        if not form.vars.name and form.vars.url:
-            form.vars.name = form.vars.url
+        # By default we set the name to match the pickled query
+        if not form.vars.name and form.vars.query:
+            form.vars.name = form.vars.query
 
         # If the pe_id is empty, populate it with the current user pe_id
         if not form.vars.pe_id:
             form.vars.pe_id = current.auth.s3_user_pe_id(current.auth.user_id)
 
     @staticmethod
-    def pr_saved_search_url_represent(url):
-        if not url:
-            return
+    def pr_saved_search_query_represent(query):
+        """
+            Takes a pickled dictionary of search filters
+            Returns a string of nice labels and represent-ed values
+        """
+        from s3.s3resource import S3ResourceField, S3ResourceFilter
+        import cPickle
 
-        import urlparse
+        search_data = cPickle.loads(query)
+        print "search_data: %s" % search_data
 
-        parsed_url = urlparse.urlparse(url)
-        app, prefix, resource = parsed_url.path.split("/")[1:4]
-        query = urlparse.parse_qs(parsed_url.query)
+        resource = current.manager.define_resource(search_data["prefix"], search_data["resource"])
 
-        resource = current.manager.define_resource(prefix, resource)
-
-        # this holds field labels with their values
-        labels = []
+        field_labels = []
         nice_values = []
 
-        for field_filter, value in query.items():
+        rf = S3ResourceFilter.parse_url_query(resource, search_data["filters"])
+
+        for field_filter, values in search_data["filters"].items():
             field_selector, filter = field_filter.split("__")
-            fl = resource.resolve_selector(field_selector)
-            labels.append(fl.label)
 
-            value = value[0].split(",") # ['4,7,9']
-            for index, v in enumerate(value):
-                try:
-                    v = int(v)
-                except:
-                    pass
+            if "|" in field_selector:
+                selectors = field_selector.split("|")
+            else:
+                selectors = [field_selector]
 
-                value[index] = fl.represent(v)
+            for index, selector in enumerate(selectors):
+                field = S3ResourceField(resource, selector)
+                selectors[index] = str(field.label) #Fixme: should be unicode but balks
 
-            nice_values.append(",".join(value))
+            field_labels.append("|".join(selectors))
+
+            values = S3ResourceFilter._parse_value(values)
+
+            for index, value in enumerate(values):
+                if s3_has_foreign_key(field.field):
+                    try:
+                        value = int(value) # some represent need ints
+                    except:
+                        pass
+
+                    values[index] = field.represent(value)
+
+            nice_values.append(",".join(values))
 
         query_list = []
-        for index, label in enumerate(labels):
+        for index, label in enumerate(field_labels):
             query_list.append("%s=%s" % (label, nice_values[index]))
 
         query_list = " AND ".join(query_list)

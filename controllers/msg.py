@@ -1473,20 +1473,50 @@ def load_search(id):
     return output
 
 def test():
-    freqency_options = ("hourly", "daily", "weekly", "monthly")
-    if request.args and \
-            request.args[0] in s3db.pr_saved_search_notification_frequency:
+    import cPickle
+    import cgi
+    import urlparse
+    from s3.s3resource import S3ResourceField, S3ResourceFilter
+    resource = current.manager.define_resource("pr", "saved_search")
+    frequency_field = S3ResourceField(resource, "saved_search.notification_frequency")
 
-        table = s3db.pr_saved_search
-        frequency = request.args[0]
+    if request.args[0]:
+        if request.args[0] in dict(frequency_field.requires.options()):
+            frequency = request.args[0]
+            table = s3db.pr_saved_search
 
-        records = db(table.notification_frequency == frequency).select()
-        if records:
-            for record in records:
+            saved_searches = db((table.notification_frequency == frequency) & (table.deleted != True)).select()
+            if saved_searches:
+                output = ""
+
+                for search in saved_searches:
                 # fetch the latest records from the search
-                pass
-        else:
-            raise HTTP(304) # not modified
+                    search_query = cPickle.loads(search.query)
+
+#                    filters = S3ResourceFilter.parse_url_query(resource, )
+#                    for filter, value in search_query.filters.items():
+#                        resource.add_filter()
+
+#                    parsed_url = urlparse.urlparse(search.url)
+#                    app, prefix, resource_name = parsed_url.path.split("/")[1:4]
+#                    query = urlparse.parse_qs(parsed_url.query)
+#                    resource = current.manager.define_resource(prefix, resource_name)
+#
+#                    # Move the values out of the list
+#                    for k, v in query.items():
+#                        query[k] = v[0]
+#
+#                    filters = S3ResourceFilter.parse_url_query(resource, query)[resource_name]
+#                    for filter in filters:
+#                        resource.add_filter(filter)
+
+                    #for row in resource.sqltable(as_rows=True):
+                    #    output += "<li>%s</li>" % cgi.escape(str(row))
+                    #output += str(resource.sqltable())
+
+                return output
+            else:
+                raise HTTP(304) # not modified
 
     raise HTTP(404) # not found
 
