@@ -2151,12 +2151,19 @@ class S3SavedSearch(S3Model):
                     pr_saved_search_notification_frequency,
                     zero=None
                 ),
-                default=1,
+                default="never",
                 represent=lambda opt: \
                     dict(pr_saved_search_notification_frequency).get(
                         opt,
                         current.messages.UNKNOWN_OPT
                     ),
+            ),
+            Field(
+                "notification_batch",
+                "boolean",
+                label=T("Send batch"),
+                comment=T("Send all modified records in a single batch rather than individually."),
+                default=True,
             ),
             Field(
                 "last_checked",
@@ -2225,21 +2232,27 @@ class S3SavedSearch(S3Model):
             Returns a string of nice labels and represent-ed values
         """
         from s3.s3resource import S3ResourceField, S3ResourceFilter
+        from s3.s3xml import S3XML
         import cPickle
 
-        search_data = cPickle.loads(query)
-        print "search_data: %s" % search_data
+        # sometimes arrives after being decoded from UTF-8
+        xml_query = query.encode("utf-8")
+        # sometimes arrives after being run through xml_encode()
+        de_query = S3XML.xml_decode(xml_query)
+        # create an object from the pickled string
+        search_options = cPickle.loads(de_query)
 
-        resource = current.manager.define_resource(search_data["prefix"], search_data["resource"])
+        resource = current.manager.define_resource(search_options["prefix"], search_options["resource"])
+        filters = search_options["filters"]
 
         field_labels = []
         nice_values = []
 
-        rf = S3ResourceFilter.parse_url_query(resource, search_data["filters"])
-
-        for field_filter, values in search_data["filters"].items():
+        for field_filter, values in filters.items():
             field_selector, filter = field_filter.split("__")
 
+            # field names are sometimes concatenated with pipes if they
+            # cover multiple fields, e.g., simple search
             if "|" in field_selector:
                 selectors = field_selector.split("|")
             else:
@@ -2247,11 +2260,17 @@ class S3SavedSearch(S3Model):
 
             for index, selector in enumerate(selectors):
                 field = S3ResourceField(resource, selector)
-                selectors[index] = str(field.label) #Fixme: should be unicode but balks
+                # Fixme: should be unicode but balks
+                selectors[index] = str(field.label)
 
+            # join the nice labels back together
             field_labels.append("|".join(selectors))
 
+            # parse the values back out
             values = S3ResourceFilter._parse_value(values)
+
+            if not isinstance(values, list):
+                values = [values]
 
             for index, value in enumerate(values):
                 if s3_has_foreign_key(field.field):
@@ -2260,7 +2279,14 @@ class S3SavedSearch(S3Model):
                     except:
                         pass
 
-                    values[index] = field.represent(value)
+                    # need to convert to a string because some represent
+                    # functions return web2py HTML objects
+                    # s3_unicode balks on web2py HTML objects
+                    try:
+                        rep_value = field.represent(value, show_link=False)
+                    except:
+                        rep_value = field.represent(value)
+                    values[index] = str(rep_value)
 
             nice_values.append(",".join(values))
 

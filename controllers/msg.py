@@ -1489,12 +1489,34 @@ def test():
             if saved_searches:
                 output = ""
 
-                for search in saved_searches:
-                # fetch the latest records from the search
-                    search_query = cPickle.loads(search.query)
+                formatters = {
+                    "default": subscription_formatter_default,
+                    #"EMAIL": subscription_formatter_email,
+                    #"TWITTER": subscription_formatter_twitter,
+                }
 
-#                    filters = S3ResourceFilter.parse_url_query(resource, )
-#                    for filter, value in search_query.filters.items():
+                for search in saved_searches:
+                    # fetch the latest records from the search
+
+                    # unpickle the search options
+                    search_options = cPickle.loads(search.query)
+
+                    prefix = search_options["prefix"]
+                    resource_name = search_options["resource"]
+                    filters = search_options["filters"]
+
+#                    # Fetches a full page (if fetched via browser
+#                    r = current.manager.parse_request(
+#                        prefix,
+#                        resource_name,
+#                        args=["search"],
+#                        get_vars=Storage(filters),
+#                    )
+#                    s3.no_sspag = True
+#                    output = r()
+
+#                    p_filters = S3ResourceFilter.parse_url_query(resource, filters)[resource]
+#                    for filter, value in p_filters.items():
 #                        resource.add_filter()
 
 #                    parsed_url = urlparse.urlparse(search.url)
@@ -1506,19 +1528,60 @@ def test():
 #                    for k, v in query.items():
 #                        query[k] = v[0]
 #
-#                    filters = S3ResourceFilter.parse_url_query(resource, query)[resource_name]
-#                    for filter in filters:
-#                        resource.add_filter(filter)
+                    # Create the resource and add filters
+                    search_resource = current.manager.define_resource(prefix, resource_name)
+                    filters = S3ResourceFilter.parse_url_query(search_resource, filters)[resource_name]
+                    for filter in filters:
+                        search_resource.add_filter(filter)
 
-                    #for row in resource.sqltable(as_rows=True):
-                    #    output += "<li>%s</li>" % cgi.escape(str(row))
-                    #output += str(resource.sqltable())
+                    if resource.count():
+                        if search.notification_method in formatters:
+                            method = search.notification_method
+                        else:
+                            method = "default"
+
+                        output += formatters[method](search_resource)
+
+#                    for row in search_resource.sqltable(as_rows=True):
+#                        output += "<li>%s</li>" % cgi.escape(str(row))
+#                    output += str(search_resource.sqltable())
 
                 return output
             else:
                 raise HTTP(304) # not modified
 
     raise HTTP(404) # not found
+
+def subscription_formatter_default(resource):
+    """
+        Gets records from a resource and returns an HTML list.
+        This is only used when there isn't a dedicated formatter
+        for a particular method
+    """
+    import cgi
+
+    output = ""
+
+    print dir(resource)
+    print resource.fields
+
+    # Fetched the records from the resource
+    for row in resource.sqltable(as_rows=True):
+        print dir(row)
+        url = URL(c=resource.prefix, f=resource.name, args=row.id)
+        #string = current.manager.represent(field, record=row)
+        output += "<li><a href=\"%s\">%s</a></li>" % (url, cgi.escape(str(row)))
+
+    return output
+
+def subscription_formatter_email(resource):
+    """
+        Returns an HTML table of records
+    """
+    if resource.count():
+        return str(resource.sqltable())
+    else:
+        return ""
 
 # -----------------------------------------------------------------------------
 def check_updates(user_id):
