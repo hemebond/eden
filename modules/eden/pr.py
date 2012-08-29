@@ -2026,7 +2026,6 @@ class S3SavedSearch(S3Model):
     """ Saved Searches """
 
     names = [
-#        "pr_save_search",
         "pr_saved_search",
     ]
 
@@ -2035,52 +2034,6 @@ class S3SavedSearch(S3Model):
         T = current.T
         auth = current.auth
 
-        # ---------------------------------------------------------------------
-        # Saved Searches
-        #
-#        tablename = "pr_save_search"
-#        table = self.define_table(tablename,
-#                                  Field("user_id", "integer",
-#                                        readable=False,
-#                                        writable=False,
-#                                        default=auth.user_id),
-#                                  Field("search_vars", "text",
-#                                        label=T("Search Criteria"),
-#                                        #represent=lambda id:s3_search_vars_represent(id)
-#                                  ),
-#                                  Field("subscribed", "boolean",
-#                                        default=False),
-#                                  self.pr_person_id(
-#                                            label=T("Person"),
-#                                            ondelete="CASCADE",
-#                                            default=auth.s3_logged_in_person()),
-#                                  *s3_meta_fields())
-#
-#
-#        # CRUD Strings
-#        current.response.s3.crud_strings[tablename] = Storage(
-#            title_create=T("Save Search"),
-#            title_display=T("Saved Search Details"),
-#            title_list=T("Saved Searches"),
-#            title_update=T("Edit Saved Search"),
-#            title_search=T("Search Saved Searches"),
-#            subtitle_create=T("Add Saved Search"),
-#            label_list_button=T("List Saved Searches"),
-#            label_create_button=T("Save Search"),
-#            label_delete_button=T("Delete Saved Search"),
-#            msg_record_created=T("Saved Search added"),
-#            msg_record_modified=T("Saved Search updated"),
-#            msg_record_deleted=T("Saved Search deleted"),
-#            msg_list_empty=T("No Search saved"))
-#
-#        # Resource configuration
-#        self.configure(tablename,
-#                       insertable=False,
-#                       editable=False,
-#                       listadd=False,
-#                       deletable=True,
-#                       list_fields=["search_vars"])
-
         pr_saved_search_notification_format = {
             1: T("List"),
             2: T("Report"),
@@ -2088,7 +2041,6 @@ class S3SavedSearch(S3Model):
             4: T("Graph"),
         }
 
-        # Used by pr_saved_search
         pr_saved_search_notification_frequency = [
             ("never", T("Never")),
             ("hourly", T("Hourly")),
@@ -2208,7 +2160,6 @@ class S3SavedSearch(S3Model):
                 "last_checked",
                 "datetime",
                 default=datetime.datetime.utcnow(),
-                #readable=False,
                 writable=False,
                 comment=DIV(
                     _class="tooltip",
@@ -2238,18 +2189,18 @@ class S3SavedSearch(S3Model):
 
         # CRUD Strings
         current.response.s3.crud_strings["pr_saved_search"] = Storage(
-            title_create=T("Add Save Search"),
-            title_display=T("Saved Search Details"),
-            title_list=T("Saved Searches"),
-            title_update=T("Edit Saved Search"),
-            title_search=T("Search Saved Searches"),
-            subtitle_create=T("Add Saved Search"),
-            label_list_button=T("List Saved Searches"),
-            label_create_button=T("Save Search"),
-            label_delete_button=T("Delete Saved Search"),
-            msg_record_created=T("Saved Search added"),
-            msg_record_modified=T("Saved Search updated"),
-            msg_record_deleted=T("Saved Search deleted"),
+            title_create=T("Add search"),
+            title_display=T("Saved search details"),
+            title_list=T("Saved searches"),
+            title_update=T("Edit saved search"),
+            title_search=T("Search saved searches"),
+            subtitle_create=T("Add saved search"),
+            label_list_button=T("List saved searches"),
+            label_create_button=T("Save search"),
+            label_delete_button=T("Delete saved search"),
+            msg_record_created=T("Saved search added"),
+            msg_record_modified=T("Saved search updated"),
+            msg_record_deleted=T("Saved search deleted"),
             msg_list_empty=T("No Search saved")
         )
 
@@ -2268,9 +2219,6 @@ class S3SavedSearch(S3Model):
             ]
         )
 
-        # ---------------------------------------------------------------------
-        # Return model-global names to s3db.*
-        #
         return Storage()
 
     @staticmethod
@@ -2290,7 +2238,7 @@ class S3SavedSearch(S3Model):
     @staticmethod
     def pr_saved_search_query_represent(query):
         """
-            Takes a pickled dictionary of search filters
+            Takes a pickled dictionary of search options
             Returns a string of nice labels and represent-ed values
         """
         from s3.s3resource import S3ResourceField, S3ResourceFilter

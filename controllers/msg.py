@@ -1443,36 +1443,7 @@ def subscription():
     return s3_rest_controller()
 
 # -----------------------------------------------------------------------------
-def load_search(id):
-    var = {}
-    var["load"] = id
-    table = s3db.pr_save_search
-    rows = db(table.id == id).select()
-    import cPickle
-    for row in rows:
-        search_vars = cPickle.loads(row.search_vars)
-        prefix = str(search_vars["prefix"])
-        function = str(search_vars["function"])
-        date = str(row.modified_on)
-        break
-    field = "%s.modified_on__gt" % (function)
-    date = date.replace(" ", "T")
-    date = date + "Z"
-    var[field] = date
-    #var["transform"] = "eden/static/formats/xml/import.xsl"
-    r = current.manager.parse_request(prefix,
-                                      function,
-                                      args=["search"],
-                                      #extension="xml",
-                                      get_vars=Storage(var)
-                                     )
-    #redirect(URL(r=request, c=prefix, f=function, args=["search"],vars=var))
-    s3.no_sspag = True
-    output = r()
-    #extract the updates
-    return output
-
-def test():
+def search_subscription_notifications():
     import cPickle
     import cgi
     import urlparse
@@ -1490,9 +1461,9 @@ def test():
                 output = ""
 
                 notifiers = {
-                    "default": subscription_notifier_default,
-                    "EMAIL": subscription_notifier_email,
-                    #"TWITTER": subscription_formatter_twitter,
+                    "default": search_subscription_notifier_default,
+                    "EMAIL": search_subscription_notifier_email,
+                    #"TWITTER": search_subscription_formatter_twitter,
                 }
 
                 for search in saved_searches:
@@ -1535,7 +1506,8 @@ def test():
 
     raise HTTP(404) # not found
 
-def subscription_notifier_default(search, resource, **kwargs):
+# -----------------------------------------------------------------------------
+def search_subscription_notifier_default(search, resource, **kwargs):
     """
         Gets records from a resource and returns an HTML list.
         This is only used when there isn't a dedicated formatter
@@ -1556,9 +1528,11 @@ def subscription_notifier_default(search, resource, **kwargs):
 
     return output
 
-def subscription_notifier_email(search, resource, **kwargs):
+# -----------------------------------------------------------------------------
+def search_subscription_notifier_email(search, resource, **kwargs):
     """
-        Returns an HTML table of records
+        Sends an email for a search subscription. Email contains an HTML table
+        with one or more records.
 
         @param search: the saved search object
         @param resource: the resource, with filters, to get records from
@@ -1624,59 +1598,7 @@ def subscription_notifier_email(search, resource, **kwargs):
                 sender="noreply@sahana.com",
                 fromaddress="sahana@sahana.com"
             )
-    return message
-
-# -----------------------------------------------------------------------------
-def check_updates(user_id):
-    """
-        Check Updates for all the Saved Searches Subscribed by the User
-    """
-
-    message = "<h2>Saved Searches' Update</h2>"
-    flag = 0
-    table = s3db.pr_save_search
-    rows = db(table.user_id == user_id).select()
-    search_vars_represent = s3base.s3_search_vars_represent
-    for row in rows :
-        if row.subscribed:
-            records = load_search(row.id)
-            message = message + "<b>" + search_vars_represent(row.search_vars) + "</b>"
-            if str(records["items"]) != "No Matching Records":
-                message = message + str(records["items"]) + "<br />" #Include the Saved Search details
-                flag = 1
-            db.pr_save_search[row.id] = dict(modified_on=request.utcnow)
-    if flag == 0:
-        return
-    else:
-        return XML(message)
-
-# -----------------------------------------------------------------------------
-def subscription_messages():
-
-    table = s3db.msg_subscription
-    subs = None
-    if request.args[0] == "daily":
-        subs = db(table.subscription_frequency == "daily").select()
-    if request.args[0] == "weekly":
-        subs = db(table.subscription_frequency == "weekly").select()
-    if request.args[0] == "monthly":
-        subs = db(table.subscription_frequency == "monthly").select()
-    if subs:
-        for sub in subs:
-            # Check if the message is not empty
-            message = check_updates(sub.user_id)
-            if message == None:
-                continue
-            pe_id = auth.s3_user_pe_id(sub.user_id)
-            if pe_id:
-                msg.send_by_pe_id(pe_id,
-                                  subject="Subscription Updates",
-                                  message=message,
-                                  sender_pe_id=None,
-                                  pr_message_method="EMAIL",
-                                  sender="noreply@sahana.com",
-                                  fromaddress="sahana@sahana.com")
-    return
+    return ""
 
 # =============================================================================
 # Enabled only for testing:
