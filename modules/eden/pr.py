@@ -2065,6 +2065,10 @@ class S3SavedSearch(S3Model):
             self.super_link(
                 "pe_id",
                 "pr_pentity",
+                label=T("Person Entity"),
+                readable=True,
+                writable=True,
+                represent=pr_pentity_represent
             ),
             Field(
                 "query",
