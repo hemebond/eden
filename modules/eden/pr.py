@@ -2102,6 +2102,7 @@ class S3SavedSearch(S3Model):
             Field(
                 "name",
                 requires=IS_NOT_EMPTY(),
+                comment=T("This will show up in notifications.")
             ),
             self.super_link(
                 "pe_id",
@@ -2164,6 +2165,7 @@ class S3SavedSearch(S3Model):
                 label=T("Send batch"),
                 comment=T("Send all modified records in a single batch rather than individually."),
                 default=True,
+                represent=lambda v: T("Yes") if v else T("No")
             ),
             Field(
                 "last_checked",
@@ -2219,7 +2221,7 @@ class S3SavedSearch(S3Model):
 
         # By default we set the name to match the pickled query
         if not form.vars.name and form.vars.query:
-            form.vars.name = form.vars.query
+            form.vars.name = pr_saved_search_query_represent(form.vars.query)
 
         # If the pe_id is empty, populate it with the current user pe_id
         if not form.vars.pe_id:

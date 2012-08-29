@@ -165,6 +165,7 @@ def person():
                             search_url = URL(
                                 c=up_query["prefix"],
                                 f=up_query["resource"],
+                                args=["search"],
                                 vars=filters,
                             )
                             redirect(search_url)

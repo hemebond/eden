@@ -1480,7 +1480,7 @@ def test():
     resource = current.manager.define_resource("pr", "saved_search")
     frequency_field = S3ResourceField(resource, "saved_search.notification_frequency")
 
-    if request.args[0]:
+    if request.args:
         if request.args[0] in dict(frequency_field.requires.options()):
             frequency = request.args[0]
             table = s3db.pr_saved_search
@@ -1489,9 +1489,9 @@ def test():
             if saved_searches:
                 output = ""
 
-                formatters = {
-                    "default": subscription_formatter_default,
-                    #"EMAIL": subscription_formatter_email,
+                notifiers = {
+                    "default": subscription_notifier_default,
+                    "EMAIL": subscription_notifier_email,
                     #"TWITTER": subscription_formatter_twitter,
                 }
 
@@ -1505,29 +1505,6 @@ def test():
                     resource_name = search_options["resource"]
                     filters = search_options["filters"]
 
-#                    # Fetches a full page (if fetched via browser
-#                    r = current.manager.parse_request(
-#                        prefix,
-#                        resource_name,
-#                        args=["search"],
-#                        get_vars=Storage(filters),
-#                    )
-#                    s3.no_sspag = True
-#                    output = r()
-
-#                    p_filters = S3ResourceFilter.parse_url_query(resource, filters)[resource]
-#                    for filter, value in p_filters.items():
-#                        resource.add_filter()
-
-#                    parsed_url = urlparse.urlparse(search.url)
-#                    app, prefix, resource_name = parsed_url.path.split("/")[1:4]
-#                    query = urlparse.parse_qs(parsed_url.query)
-#                    resource = current.manager.define_resource(prefix, resource_name)
-#
-#                    # Move the values out of the list
-#                    for k, v in query.items():
-#                        query[k] = v[0]
-#
                     # Create the resource and add filters
                     search_resource = current.manager.define_resource(prefix, resource_name)
                     filters = S3ResourceFilter.parse_url_query(search_resource, filters)[resource_name]
@@ -1535,12 +1512,12 @@ def test():
                         search_resource.add_filter(filter)
 
                     if resource.count():
-                        if search.notification_method in formatters:
+                        if search.notification_method in notifiers:
                             method = search.notification_method
                         else:
                             method = "default"
 
-                        output += formatters[method](search_resource)
+                        output += notifiers[method](search, search_resource)
 
 #                    for row in search_resource.sqltable(as_rows=True):
 #                        output += "<li>%s</li>" % cgi.escape(str(row))
@@ -1552,36 +1529,90 @@ def test():
 
     raise HTTP(404) # not found
 
-def subscription_formatter_default(resource):
+def subscription_notifier_default(search, resource, **kwargs):
     """
         Gets records from a resource and returns an HTML list.
         This is only used when there isn't a dedicated formatter
         for a particular method
+
+        @param search: the saved search object
+        @param resource: the resource, with filters, to get records from
     """
     import cgi
 
     output = ""
 
-    print dir(resource)
-    print resource.fields
-
     # Fetched the records from the resource
     for row in resource.sqltable(as_rows=True):
-        print dir(row)
         url = URL(c=resource.prefix, f=resource.name, args=row.id)
         #string = current.manager.represent(field, record=row)
         output += "<li><a href=\"%s\">%s</a></li>" % (url, cgi.escape(str(row)))
 
     return output
 
-def subscription_formatter_email(resource):
+def subscription_notifier_email(search, resource, **kwargs):
     """
         Returns an HTML table of records
+
+        @param search: the saved search object
+        @param resource: the resource, with filters, to get records from
     """
+    from s3.s3utils import s3_unicode
+    tables = []
+
     if resource.count():
-        return str(resource.sqltable())
-    else:
-        return ""
+        fields = [f for f in resource.readable_fields()]
+        head_rows = TR([TH(f.label) for f in fields])
+        body_rows = []
+
+        for row in resource.load():
+            row_cells = []
+
+            for field in fields:
+                rep_value = current.manager.represent(field, record=row)
+                row_cells.append(TD(rep_value))
+
+            body_rows.append(TR(*row_cells))
+
+        if search.notification_batch:
+            table = TABLE(
+                THEAD(head_rows),
+                TBODY(*body_rows),
+            )
+            tables.append(table)
+        else:
+            for table_row in body_rows:
+                table = TABLE(
+                    THEAD(head_rows),
+                    TBODY(table_row),
+                )
+                tables.append(table)
+
+    for table in tables:
+        # need to use string <html> because web2py automatically puts in
+        # the DOCTYPE string which breaks the web2py mail detector
+        # which will end up sending the email as plain/text.
+        message = response.render(
+            "msg/notification_email.html",
+            {
+                "search": search,
+                "table":table
+            }
+        )
+
+        if pe_id:
+            msg.send_by_pe_id(
+                search.pe_id,
+                subject="Subscription: %s" % search.name,
+                message=message,
+                sender_pe_id=None,
+                pr_message_method="EMAIL",
+                sender="noreply@sahana.com",
+                fromaddress="sahana@sahana.com"
+            )
+            #print "Sending: %s" % message
+            pass
+    return message
 
 # -----------------------------------------------------------------------------
 def check_updates(user_id):
