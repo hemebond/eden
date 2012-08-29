@@ -1476,7 +1476,7 @@ def test():
     import cPickle
     import cgi
     import urlparse
-    from s3.s3resource import S3ResourceField, S3ResourceFilter
+    from s3.s3resource import S3ResourceField, S3ResourceFilter, S3FieldSelector
     resource = current.manager.define_resource("pr", "saved_search")
     frequency_field = S3ResourceField(resource, "saved_search.notification_frequency")
 
@@ -1505,11 +1505,16 @@ def test():
                     resource_name = search_options["resource"]
                     filters = search_options["filters"]
 
-                    # Create the resource and add filters
+                    # Create the resource
                     search_resource = current.manager.define_resource(prefix, resource_name)
                     filters = S3ResourceFilter.parse_url_query(search_resource, filters)[resource_name]
+
+                    # Add the saved filters
                     for filter in filters:
                         search_resource.add_filter(filter)
+
+                    # Only records modified after the last_checked datetime
+                    search_resource.add_filter(S3FieldSelector("modified_on") >= search.last_checked)
 
                     if resource.count():
                         if search.notification_method in notifiers:
@@ -1519,13 +1524,14 @@ def test():
 
                         output += notifiers[method](search, search_resource)
 
-#                    for row in search_resource.sqltable(as_rows=True):
-#                        output += "<li>%s</li>" % cgi.escape(str(row))
-#                    output += str(search_resource.sqltable())
+                    search.last_checked = datetime.datetime.utcnow()
 
-                return output
-            else:
-                raise HTTP(304) # not modified
+                db((table.notification_frequency == frequency) & (table.deleted != True)).update(last_checked=datetime.datetime.utcnow())
+
+                if output:
+                    return output
+                else:
+                    raise HTTP(304) # not modified
 
     raise HTTP(404) # not found
 
@@ -1533,7 +1539,7 @@ def subscription_notifier_default(search, resource, **kwargs):
     """
         Gets records from a resource and returns an HTML list.
         This is only used when there isn't a dedicated formatter
-        for a particular method
+        for a particular method. Quick and dirty.
 
         @param search: the saved search object
         @param resource: the resource, with filters, to get records from
@@ -1558,6 +1564,7 @@ def subscription_notifier_email(search, resource, **kwargs):
         @param resource: the resource, with filters, to get records from
     """
     from s3.s3utils import s3_unicode
+    from s3.s3resource import S3FieldSelector
     tables = []
 
     if resource.count():
@@ -1566,6 +1573,10 @@ def subscription_notifier_email(search, resource, **kwargs):
         body_rows = []
 
         for row in resource.load():
+            print "%s >= %s" % (
+                current.manager.represent(s3db.project_project.modified_on, record=row),
+                search.last_checked,
+            )
             row_cells = []
 
             for field in fields:
@@ -1581,12 +1592,14 @@ def subscription_notifier_email(search, resource, **kwargs):
             )
             tables.append(table)
         else:
-            for table_row in body_rows:
+            for row in body_rows:
                 table = TABLE(
                     THEAD(head_rows),
-                    TBODY(table_row),
+                    TBODY(row),
                 )
                 tables.append(table)
+
+    message = ""
 
     for table in tables:
         # need to use string <html> because web2py automatically puts in
@@ -1596,11 +1609,12 @@ def subscription_notifier_email(search, resource, **kwargs):
             "msg/notification_email.html",
             {
                 "search": search,
-                "table":table
+                "table": table,
+                "system_name": settings.get_system_name(),
             }
         )
 
-        if pe_id:
+        if search.pe_id:
             msg.send_by_pe_id(
                 search.pe_id,
                 subject="Subscription: %s" % search.name,
@@ -1610,8 +1624,6 @@ def subscription_notifier_email(search, resource, **kwargs):
                 sender="noreply@sahana.com",
                 fromaddress="sahana@sahana.com"
             )
-            #print "Sending: %s" % message
-            pass
     return message
 
 # -----------------------------------------------------------------------------
