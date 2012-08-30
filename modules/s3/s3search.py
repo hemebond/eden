@@ -1624,17 +1624,6 @@ class S3Search(S3CRUD):
         simple_form = None
         advanced_form = None
 
-        # Add-link (common to all forms)
-        ADD = self.crud_string(tablename, "label_create_button")
-        href_add = r.url(method="create", representation=representation)
-        insertable = self._config("insertable", True)
-        authorised = self.permit("create", tablename)
-        if authorised and insertable and representation != "plain":
-            add_link = self.crud_button(ADD, _href=href_add,
-                                        _id="add-btn", _class="action-lnk")
-        else:
-            add_link = ""
-
         # Simple search form
         if simple:
             # Switch-link
@@ -1645,7 +1634,6 @@ class S3Search(S3CRUD):
                 switch_link = ""
             simple_form = self._build_form(simple,
                                            form_values=form_values,
-                                           add=add_link,
                                            switch=switch_link,
                                            _class="simple-form")
 
@@ -1660,14 +1648,13 @@ class S3Search(S3CRUD):
                 _class = "%s"
             advanced_form = self._build_form(advanced,
                                              form_values=form_values,
-                                             add=add_link,
                                              switch=switch_link,
                                              _class=_class % "advanced-form")
 
         return (simple_form, advanced_form)
 
     # -------------------------------------------------------------------------
-    def _build_form(self, widgets, form_values=None, add="", switch="", **attr):
+    def _build_form(self, widgets, form_values=None, switch="", **attr):
         """
             @todo: docstring
         """
@@ -1701,7 +1688,7 @@ class S3Search(S3CRUD):
             trows.append(tr)
 
         trows.append(TR("", TD(INPUT(_type="submit", _value=T("Search")),
-                               switch, add)))
+                               switch)))
         form = FORM(TABLE(trows), **attr)
         return form
 

@@ -1458,7 +1458,6 @@ def search_subscription_notifications():
 
             saved_searches = db((table.notification_frequency == frequency) & (table.deleted != True)).select()
             if saved_searches:
-                output = ""
 
                 notifiers = {
                     "default": search_subscription_notifier_default,
@@ -1493,16 +1492,16 @@ def search_subscription_notifications():
                         else:
                             method = "default"
 
-                        output += notifiers[method](search, search_resource)
+                        notifiers[method](search, search_resource)
 
-                    search.last_checked = datetime.datetime.utcnow()
-
-                db((table.notification_frequency == frequency) & (table.deleted != True)).update(last_checked=datetime.datetime.utcnow())
-
-                if output:
-                    return output
-                else:
-                    raise HTTP(304) # not modified
+                # Update the saved searches to indicate they've just been checked
+                db(
+                    (table.notification_frequency == frequency) & \
+                    (table.deleted != True)
+                ).update(
+                    last_checked=datetime.datetime.utcnow()
+                )
+                return ""
 
     raise HTTP(404) # not found
 
@@ -1537,68 +1536,111 @@ def search_subscription_notifier_email(search, resource, **kwargs):
         @param search: the saved search object
         @param resource: the resource, with filters, to get records from
     """
-    from s3.s3utils import s3_unicode
-    from s3.s3resource import S3FieldSelector
-    tables = []
 
-    if resource.count():
-        fields = [f for f in resource.readable_fields()]
-        head_rows = TR([TH(f.label) for f in fields])
-        body_rows = []
+    fields = [f for f in resource.readable_fields()]
+    head_row = TR([TH(f.label) for f in fields if f.name != "id"])
+    new_rows = []
+    mod_rows = []
 
-        for row in resource.load():
-            print "%s >= %s" % (
-                current.manager.represent(s3db.project_project.modified_on, record=row),
-                search.last_checked,
-            )
-            row_cells = []
+    for row in resource.load():
+        first_cell = True
+        row_cells = []
 
-            for field in fields:
-                rep_value = current.manager.represent(field, record=row)
+        for f in fields:
+            # We don't want to show the "id" field at all
+            if f.name != "id":
+                rep_value = current.manager.represent(f, record=row)
+
+                # Hyperlink the text in the first
+                # cell to the record page
+                if first_cell:
+                    url = URL(
+                        scheme=True,
+                        c=resource.prefix,
+                        f=resource.name,
+                        args=row.id,
+                    )
+                    rep_value = A(
+                        rep_value,
+                        _href=url,
+                    )
+                    first_cell = False
                 row_cells.append(TD(rep_value))
 
-            body_rows.append(TR(*row_cells))
+        tr = TR(*row_cells)
 
-        if search.notification_batch:
-            table = TABLE(
-                THEAD(head_rows),
-                TBODY(*body_rows),
-            )
-            tables.append(table)
+        # Records are either "new" or "modified"
+        if row.created_on >= search.last_checked:
+            new_rows.append(tr)
         else:
-            for row in body_rows:
-                table = TABLE(
-                    THEAD(head_rows),
-                    TBODY(row),
-                )
-                tables.append(table)
+            mod_rows.append(tr)
 
-    message = ""
+    def send(new_rows=[], mod_rows=[]):
+        """
+            Puts the rows into tables, renders them
+            using a template, and then
+            sends the notification (email)
+        """
+        if not new_rows and not mod_rows:
+            return
 
-    for table in tables:
-        # need to use string <html> because web2py automatically puts in
-        # the DOCTYPE string which breaks the web2py mail detector
-        # which will end up sending the email as plain/text.
+        # Generate a table for the new records
+        if new_rows:
+            new_table = TABLE(
+                THEAD(head_row),
+                TBODY(*new_rows),
+            )
+        else:
+            new_table = None
+
+        # Generate a table for updated records
+        if mod_rows:
+            mod_table = TABLE(
+                THEAD(head_row),
+                TBODY(*mod_rows),
+            )
+        else:
+            mod_table = None
+
+        # Render the records via a template
         message = response.render(
             "msg/notification_email.html",
             {
                 "search": search,
-                "table": table,
+                "new_table": new_table,
+                "mod_table": mod_table,
                 "system_name": settings.get_system_name(),
+                "resource_name": resource.name,
             }
         )
 
-        if search.pe_id:
-            msg.send_by_pe_id(
-                search.pe_id,
-                subject="Subscription: %s" % search.name,
-                message=message,
-                sender_pe_id=None,
-                pr_message_method="EMAIL",
-                sender="noreply@sahana.com",
-                fromaddress="sahana@sahana.com"
-            )
-    return ""
+        # Send the email
+        msg.send_by_pe_id(
+            search.pe_id,
+            subject="%s Search Notification %s" % (
+                settings.get_system_name_short(),
+                search.name,
+            ),
+            message=message,
+            sender_pe_id=None,
+            pr_message_method="EMAIL",
+            sender="noreply@sahana.com",
+            fromaddress="sahana@sahana.com"
+        )
+
+    if search.notification_batch:
+        # Batch notifications send all rows at once
+        send(
+            new_rows,
+            mod_rows,
+        )
+    else:
+        # Non-batch notifications send each row in its own message
+        for row in new_rows:
+            send(new_rows=[row])
+
+        for row in mod_rows:
+            send(mod_rows=[row])
 
 # =============================================================================
 # Enabled only for testing:
