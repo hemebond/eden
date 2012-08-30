@@ -270,7 +270,7 @@ class S3SearchSimpleWidget(S3SearchWidget):
 
 
         # Search Autocomplete - Display current value
-        attr["_value"] = value
+        attr["_value"] = vars.get(self.name, value)
 
         return INPUT(**attr)
 
