@@ -2071,17 +2071,17 @@ class S3SavedSearch(S3Model):
                 represent=pr_pentity_represent
             ),
             Field(
-                "module_prefix",
+                "prefix",
                 "string",
                 label=T("Module prefix"),
-                readable=False,
+                #readable=False,
                 writable=False,
             ),
             Field(
                 "resource_name",
                 "string",
                 label=T("Resource name"),
-                readable=False,
+                #readable=False,
                 writable=False,
             ),
             Field(
@@ -2266,7 +2266,7 @@ class S3SavedSearch(S3Model):
         # Set the friendly query string from the url
         if form.vars.url:
             form.vars.query = S3SavedSearch.friendly_string_from_field_query(
-                form.vars.module_prefix,
+                form.vars.prefix,
                 form.vars.resource_name,
                 form.vars.url
             )
@@ -2313,8 +2313,6 @@ class S3SavedSearch(S3Model):
 
             # parse the values back out
             values = S3ResourceFilter._parse_value(values)
-
-            print values
 
             if not isinstance(values, list):
                 values = [values]

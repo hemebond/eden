@@ -1448,6 +1448,7 @@ def search_subscription_notifications():
     import cgi
     import urlparse
     from s3.s3resource import S3ResourceField, S3ResourceFilter, S3FieldSelector
+    import urllib2
     resource = current.manager.define_resource("pr", "saved_search")
     frequency_field = S3ResourceField(resource, "saved_search.notification_frequency")
 
@@ -1468,12 +1469,13 @@ def search_subscription_notifications():
                 for search in saved_searches:
                     # fetch the latest records from the search
 
-                    # unpickle the search options
-                    search_options = cPickle.loads(search.query)
+                    url = "%s%s" % (settings.get_base_public_url(), search.url)
 
-                    prefix = search_options["prefix"]
-                    resource_name = search_options["resource"]
-                    filters = search_options["filters"]
+                    user_id = current.auth.s3_get_user_id(search.pe_id)
+                    if user_id:
+                        current.auth.s3_impersonate(user_id)
+
+                    return
 
                     # Create the resource
                     search_resource = current.manager.define_resource(prefix, resource_name)
@@ -1493,7 +1495,7 @@ def search_subscription_notifications():
                             method = "default"
 
                         notifiers[method](search, search_resource)
-
+                return
                 # Update the saved searches to indicate they've just been checked
                 db(
                     (table.notification_frequency == frequency) & \

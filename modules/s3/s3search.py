@@ -1077,7 +1077,7 @@ class S3Search(S3CRUD):
         return (query, errors)
 
     # -------------------------------------------------------------------------
-    def save_search_widget(self, r, search_vars, search_url, **attr):
+    def save_search_widget(self, r, query, **attr):
         """
             Add a widget to a Search form to allow saving this search to the
             user's profile, to which they can subscribe
@@ -1105,9 +1105,12 @@ class S3Search(S3CRUD):
             "data": json.dumps({
                 "$_pr_saved_search": [
                     {
-                        "prefix": r.prefix,
-                        "resource": r.function,
-                        "url": search_url,
+                        "module_prefix": self.resource.prefix,
+                        "resource_name": self.resource.name,
+                        "url": r.url(
+                            method="search", # want to see search form
+                            vars=query.serialize_url(self.resource),
+                        ),
                     },
                 ],
             }),
@@ -1120,8 +1123,6 @@ class S3Search(S3CRUD):
             ),
             SCRIPT(
                 "S3.search.saveOptions=%s" % json.dumps(save_options)
-            ),
-            _id="save-search"
         )
 
         return widget
