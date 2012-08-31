@@ -153,22 +153,7 @@ def person():
                     if record_id:
                         record = s3db.pr_saved_search[record_id]
                         if record:
-                            import cPickle
-                            from s3 import S3ResourceFilter
-
-                            up_query = cPickle.loads(record.query)
-                            #print up_query
-                            filters = up_query["filters"]
-                            #print filters
-
-                            #print rf.parse_url_query(res, filters)
-                            search_url = URL(
-                                c=up_query["prefix"],
-                                f=up_query["resource"],
-                                args=["search"],
-                                vars=filters,
-                            )
-                            redirect(search_url)
+                            redirect(record.url)
                         else:
                             raise HTTP(404)
 

@@ -268,7 +268,6 @@ class S3SearchSimpleWidget(S3SearchWidget):
 
         self.name = attr._name
 
-
         # Search Autocomplete - Display current value
         attr["_value"] = vars.get(self.name, value)
 
@@ -1083,7 +1082,6 @@ class S3Search(S3CRUD):
             Add a widget to a Search form to allow saving this search to the
             user's profile, to which they can subscribe
         """
-
         T = current.T
 
         person_id = current.auth.s3_user_pe_id(current.auth.user_id)
@@ -1115,23 +1113,10 @@ class S3Search(S3CRUD):
             }),
         }
 
-        widget = FIELDSET(
-            LEGEND(T("Save Search")),
-            DIV(
-                BUTTON(T("Save this search")),
-            ),
-            DIV(
-                A(
-                    T("View all your saved searches"),
-                    _href=URL(
-                        c="pr",
-                        f="person",
-                        args=[
-                            person_id,
-                            "saved_search",
-                        ]
-                    )
-                ),
+        widget = TAG[""](
+            BUTTON(
+                T("Save this search"),
+                _id="save-search",
             ),
             SCRIPT(
                 "S3.search.saveOptions=%s" % json.dumps(save_options)
@@ -1140,108 +1125,6 @@ class S3Search(S3CRUD):
         )
 
         return widget
-
-
-#        db = current.db
-#        request = self.request
-#        user_id = current.session.auth.user.id
-#        now = request.utcnow.microsecond
-#        save_search_btn_id = "save_my_filter_btn_%s" % now
-#        save_search_processing_id = "save_search_processing_%s" % now
-#        save_search_a_id = "save_search_a_%s" % now
-#        arg = "%s/save_search" % user_id
-#        save_search_a = DIV(T("View and Subscribe to Saved Searches"),
-#                            A(T("Here"),
-#                              _href=URL(r=request, c="pr", f="person",
-#                                        args=[arg]),
-#                              _target="_blank"
-#                             ),
-#                            ".",
-#                        _id=save_search_a_id,
-#                        _class="save_search_a"
-#                        )
-#        search_vars["prefix"] = r.controller
-#        search_vars["function"] = r.function
-#
-#        table = current.s3db.pr_save_search
-#        rows = db(table.user_id == user_id).select(table.ALL)
-#        if rows:
-#            import cPickle
-#            for row in rows:
-#                pat = "_"
-#                s_v = cPickle.loads(row.search_vars)
-#                if ((search_vars["prefix"] == s_v["prefix"]) and \
-#                    (search_vars["function"] == s_v["function"])):
-#                    s_dict = s_v["criteria"]
-#                    if "criteria" in search_vars:
-#                        c_dict = search_vars["criteria"]
-#                    else:
-#                        break
-#                    diff = [ k for k in c_dict if k not in s_dict ]
-#                    if not len(diff):
-#                        flag = 1
-#                        for j in s_dict.iterkeys():
-#                            if not re.match(pat, j):
-#                                if c_dict[j] != s_dict[j]:
-#                                    flag = 0
-#                                    break
-#                        if flag == 1:
-#                            return DIV(save_search_a,
-#                                       _style="font-size:12px;padding:5px 0px 5px 90px;",
-#                                       _id="save_search"
-#                                       )
-#
-#        save_search_btn = A("Save Search",
-#                            _class="save_search_btn",
-#                            _id=save_search_btn_id,
-#                            _href="#",
-#                            _title=T("Save this search"))
-#        save_search_a["_style"] = "display:none;"
-#        save_search_processing = IMG(_src="/%s/static/img/ajax-loader.gif" % request.application,
-#                                    _id=save_search_processing_id,
-#                                    _class="save_search_processing_id",
-#                                    _style="display:none;"
-#                                    )
-#        s_var = {}
-#        s_var["save"] = True
-#        jurl = URL(
-#            r=request,
-#            c=r.controller,
-#            f=r.function,
-#            args=["search"],
-#            vars=s_var
-#        )
-#        save_search_script = \
-#'''$('#%s').live('click',function(){
-# $('#%s').show()
-# $('#%s').hide()
-# $.ajax({
-#  url:'%s',
-#  data:'%s',
-#  success:function(data){
-#   $('#%s').show()
-#   $('#%s').hide()
-#  },
-#  type:'POST'
-# })
-# return false
-#})''' % (save_search_btn_id,
-#         save_search_processing_id,
-#         save_search_btn_id,
-#         jurl,
-#         json.dumps(search_vars),
-#         save_search_a_id,
-#         save_search_processing_id)
-#
-#        current.response.s3.jquery_ready.append(save_search_script)
-#
-#        widget = DIV(save_search_processing,
-#                     save_search_a,
-#                     save_search_btn,
-#                     _style="font-size:12px;padding:5px 0px 5px 90px;",
-#                     _id="save_search"
-#                     )
-#        return widget
 
     # -------------------------------------------------------------------------
     def search_interactive(self, r, **attr):
@@ -1306,23 +1189,6 @@ class S3Search(S3CRUD):
         # Build the search forms
         simple_form, advanced_form = self.build_forms(r, form_values)
 
-        # Check for Load Search
-#        if "load" in r.get_vars:
-#            search_id = r.get_vars.get("load", None)
-#            if not search_id:
-#                r.error(400, current.manager.ERROR.BAD_RECORD)
-#            r.post_vars = r.vars
-#            search_table = s3db.pr_save_search
-#            _query = (search_table.id == search_id)
-#            record = db(_query).select(record.search_vars,
-#                                       limitby=(0, 1)).first()
-#            if not record:
-#                r.error(400, current.manager.ERROR.BAD_RECORD)
-#            import cPickle
-#            s_vars = cPickle.loads(record.search_vars)
-#            r.post_vars = Storage(s_vars["criteria"])
-#            r.http = "POST"
-
         # Process the search forms
         query, errors = self.process_forms(
             r,
@@ -1332,10 +1198,15 @@ class S3Search(S3CRUD):
         )
 
         search_url = None
+        save_search = ""
         if not errors:
             if hasattr(query, "serialize_url"):
                 search_url = r.url(method="",
                                    vars=query.serialize_url(resource))
+
+                # Create a Save Search widget
+                save_search = self.save_search_widget(r, query, **attr)
+
             resource.add_filter(query)
             search_vars = dict(simple=False,
                                advanced=True,
@@ -1356,18 +1227,14 @@ class S3Search(S3CRUD):
         else:
             form.append(DIV(_id="search-mode", _mode="advanced"))
 
-        # Save Search Widget
-        if session.auth and settings.get_save_search_widget():
-            save_search = self.save_search_widget(r, search_vars, search_url, **attr)
-        else:
-            save_search = DIV()
-
         # Complete the output form-DIV()
         if simple_form is not None:
-            simple_form.append(save_search)
+            # Insert the save button next to the submit button
+            simple_form[0][-1][1].insert(1, save_search)
             form.append(simple_form)
         if advanced_form is not None:
-            advanced_form.append(save_search)
+            # Insert the save button next to the submit button
+            advanced_form[0][-1][1].insert(1, save_search)
             form.append(advanced_form)
         output["form"] = form
 
@@ -1665,7 +1532,6 @@ class S3Search(S3CRUD):
 
         trows = []
         for name, widget in widgets:
-
             _widget = widget.widget(resource, form_values)
             if _widget is None:
                 # Skip this widget as we have nothing but the label

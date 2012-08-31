@@ -2071,11 +2071,39 @@ class S3SavedSearch(S3Model):
                 represent=pr_pentity_represent
             ),
             Field(
+                "module_prefix",
+                "string",
+                label=T("Module prefix"),
+                readable=False,
+                writable=False,
+            ),
+            Field(
+                "resource_name",
+                "string",
+                label=T("Resource name"),
+                readable=False,
+                writable=False,
+            ),
+            Field(
+                "url",
+                "string",
+                label=T("URL"),
+                #readable=False,
+                writable=False,
+                comment=DIV(
+                    _class="tooltip",
+                    _title="%s|%s" % (
+                        T("URL"),
+                        T("The URL with field query. Used to fetch the search results.")
+                    )
+                )
+            ),
+            # Friendly representation of the search URL
+            Field(
                 "query",
                 "text",
                 label=T("Query"),
                 writable=False,
-                represent=self.pr_saved_search_query_represent,
                 comment=DIV(
                     _class="tooltip",
                     _title="%s|%s" % (
@@ -2231,36 +2259,36 @@ class S3SavedSearch(S3Model):
             Set values for some fields if left empty
         """
 
-        # By default we set the name to match the pickled query
-        if not form.vars.name and form.vars.query:
-            form.vars.name = S3SavedSearch.pr_saved_search_query_represent(form.vars.query)
-
         # If the pe_id is empty, populate it with the current user pe_id
         if not form.vars.pe_id:
             form.vars.pe_id = current.auth.s3_user_pe_id(current.auth.user_id)
 
+        # Set the friendly query string from the url
+        if form.vars.url:
+            form.vars.query = S3SavedSearch.friendly_string_from_field_query(
+                form.vars.module_prefix,
+                form.vars.resource_name,
+                form.vars.url
+            )
+
+        # By default we set the name to match the friendly query string
+        if not form.vars.name and form.vars.query:
+            form.vars.name = form.vars.query
+
     @staticmethod
-    def pr_saved_search_query_represent(query):
+    def friendly_string_from_field_query(prefix, resource_name, url):
         """
-            Takes a pickled dictionary of search options
+            Takes a field query URL
             Returns a string of nice labels and represent-ed values
         """
         from s3.s3resource import S3ResourceField, S3ResourceFilter
         from s3.s3xml import S3XML
-        import cPickle
+        import urlparse
 
-        # sometimes arrives after being decoded from UTF-8
-        xml_query = query.encode("utf-8")
-        # sometimes arrives after being run through xml_encode()
-        de_query = S3XML.xml_decode(xml_query)
-        # create an object from the pickled string
-        search_options = cPickle.loads(de_query)
+        resource = current.manager.define_resource(prefix, resource_name)
 
-        resource = current.manager.define_resource(
-            search_options["prefix"],
-            search_options["resource"]
-        )
-        filters = search_options["filters"]
+        parsed_url = urlparse.urlparse(url)
+        filters = urlparse.parse_qs(parsed_url.query)
 
         field_labels = []
         nice_values = []
@@ -2285,6 +2313,8 @@ class S3SavedSearch(S3Model):
 
             # parse the values back out
             values = S3ResourceFilter._parse_value(values)
+
+            print values
 
             if not isinstance(values, list):
                 values = [values]

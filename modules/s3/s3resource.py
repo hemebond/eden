@@ -5001,8 +5001,8 @@ class S3ResourceFilter:
             @note: does not support quotes within quoted strings
         """
 
-        if type(value) is list:
-            value = ",".join[value]
+        if isinstance(value, list):
+            value = ",".join(value)
         vlist = []
         w = ""
         quote = False
