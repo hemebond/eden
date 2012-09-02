@@ -1442,6 +1442,9 @@ def subscription():
 
     return s3_rest_controller()
 
+def test():
+    return "response.session_id: %s" % response.session_id
+
 # -----------------------------------------------------------------------------
 def search_subscription_notifications():
     import cPickle
