@@ -2071,6 +2071,20 @@ class S3SavedSearch(S3Model):
                 represent=pr_pentity_represent
             ),
             Field(
+                "controller",
+                "string",
+                label=T("Controller"),
+                #readable=False,
+                writable=False,
+            ),
+            Field(
+                "function",
+                "string",
+                label=T("Function"),
+                #readable=False,
+                writable=False,
+            ),
+            Field(
                 "prefix",
                 "string",
                 label=T("Module prefix"),
@@ -2111,6 +2125,12 @@ class S3SavedSearch(S3Model):
                         T("These are the filters being used by the search."),
                     )
                 ),
+            ),
+            Field(
+                "filters",
+                "string",
+                label=T("Search Filters"),
+                writable=False,
             ),
             Field(
                 "notification_format",
@@ -2214,6 +2234,12 @@ class S3SavedSearch(S3Model):
                     )
                 ),
             ),
+            Field(
+                "auth_token",
+                "string",
+                readable=False,
+                writable=False,
+            ),
             s3_comments(),
             *s3_meta_fields(),
             format="%(name)s"
@@ -2281,11 +2307,11 @@ class S3SavedSearch(S3Model):
             Takes a field query URL
             Returns a string of nice labels and represent-ed values
         """
-        from s3.s3resource import S3ResourceField, S3ResourceFilter
+        from s3.s3resource import S3Resource, S3ResourceField, S3ResourceFilter
         from s3.s3xml import S3XML
         import urlparse
 
-        resource = current.manager.define_resource(prefix, resource_name)
+        resource = S3Resource(prefix, resource_name)
 
         parsed_url = urlparse.urlparse(url)
         filters = urlparse.parse_qs(parsed_url.query)
@@ -2324,14 +2350,14 @@ class S3SavedSearch(S3Model):
                     except:
                         pass
 
-                    # need to convert to a string because some represent
-                    # functions return web2py HTML objects
-                    # s3_unicode balks on web2py HTML objects
-                    try:
-                        rep_value = field.represent(value, show_link=False)
-                    except:
-                        rep_value = field.represent(value)
-                    values[index] = str(rep_value)
+                # need to convert to a string because some represent
+                # functions return web2py HTML objects
+                # s3_unicode balks on web2py HTML objects
+                try:
+                    rep_value = field.represent(value, show_link=False)
+                except:
+                    rep_value = field.represent(value)
+                values[index] = str(rep_value)
 
             nice_values.append(",".join(values))
 

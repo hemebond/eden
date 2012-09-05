@@ -593,25 +593,26 @@ class S3SearchOptionsWidget(S3SearchWidget):
                 # Find unique values of options for that field
                 rows = resource.sqltable(fields=[field_name], as_rows=True)
 
-                if field_type.startswith("list"):
-                    for row in rows:
-                        # row == {field_name: [#, ...]}
-                        fk_list = row[field]
+                if rows:
+                    if field_type.startswith("list"):
+                        for row in rows:
+                            # row == {field_name: [#, ...]}
+                            fk_list = row[field]
 
-                        if fk_list != None:
-                            try:
-                                fkeys = fk_list.split("|")
-                            except:
-                                fkeys = fk_list
+                            if fk_list != None:
+                                try:
+                                    fkeys = fk_list.split("|")
+                                except:
+                                    fkeys = fk_list
 
-                            for fkey in fkeys:
-                                if fkey not in opt_values:
-                                    opt_values.append(fkey)
-                else:
-                    opt_values = [row[field] for row
-                                             in rows
-                                             if row[field] != None and
-                                             row[field] not in opt_values]
+                                for fkey in fkeys:
+                                    if fkey not in opt_values:
+                                        opt_values.append(fkey)
+                    else:
+                        opt_values = [row[field] for row
+                                                 in rows
+                                                 if row[field] != None and
+                                                 row[field] not in opt_values]
 
         if len(opt_values) < 2:
             msg = attr.get("_no_opts", T("No options available"))
@@ -1017,7 +1018,7 @@ class S3Search(S3CRUD):
         # Save search
         elif "save" in r.vars :
             r.interactive = False
-            output = self.save_search(r, **attr)
+            output = self.save(r, **attr)
 
         # Interactive or saved search
         elif "load" in r.vars or \
@@ -1039,6 +1040,9 @@ class S3Search(S3CRUD):
         # Search form for popup on Map Layers
         elif format == "plain":
             output = self.search_interactive(r, **attr)
+
+        elif format == "email":
+            output = self.email(r, **attr)
 
         # Not supported
         else:
@@ -1082,6 +1086,7 @@ class S3Search(S3CRUD):
             Add a widget to a Search form to allow saving this search to the
             user's profile, to which they can subscribe
         """
+        import urllib
         T = current.T
 
         person_id = current.auth.s3_user_pe_id(current.auth.user_id)
@@ -1105,12 +1110,18 @@ class S3Search(S3CRUD):
             "data": json.dumps({
                 "$_pr_saved_search": [
                     {
-                        "module_prefix": self.resource.prefix,
+                        "controller": r.controller,
+                        "function": r.function,
+                        "prefix": self.resource.prefix,
                         "resource_name": self.resource.name,
                         "url": r.url(
-                            method="search", # want to see search form
+                            # can't use the search method handler because then
+                            # we can't get different formats
+                            #method="search", # want to see search form
+                            method="",
                             vars=query.serialize_url(self.resource),
                         ),
+                        "filters": urllib.urlencode(query.serialize_url(self.resource)),
                     },
                 ],
             }),
@@ -1123,9 +1134,117 @@ class S3Search(S3CRUD):
             ),
             SCRIPT(
                 "S3.search.saveOptions=%s" % json.dumps(save_options)
+            )
         )
 
         return widget
+
+    # -------------------------------------------------------------------------
+    def email(self, r, **kwargs):
+        """
+            Takes a search request and renders it through a template
+            to format it for email notifications.
+        """
+
+        # saved search is optional, but used to filter results and
+        # put save search name into the output
+        search_subscription = current.request.get_vars.get("search_subscription", None)
+        if search_subscription:
+            search = current.db(current.s3db.pr_saved_search.auth_token == search_subscription).select().first()
+        else:
+            search = None
+
+        list_fields = self._config("list_fields")
+
+        # create a list of the names, not labels, from list_fields
+        field_names = []
+        for f in list_fields:
+            if f != "id":
+                if isinstance(f, tuple):
+                    field_names.append(f[1]) # (label, name)
+                else:
+                    field_names.append(f)
+
+        # get the field objects based on list_fields
+        fields = self.resource.readable_fields(field_names)
+
+        #fields = [f for f in resource.readable_fields() if f.name != "id"] # We don't want to show the "id" field at all
+        head_row = TR([TH(f.label) for f in fields if f.name != "id"])
+        new_rows = []
+        mod_rows = []
+
+        for row in self.resource.load():
+            first_cell = False # disabled
+            row_cells = []
+
+            for f in fields:
+                rep_value = current.manager.represent(f, record=row)
+
+                # Hyperlink the text in the first
+                # cell to the record page
+                if first_cell:
+                    url = URL(
+                        scheme=True,
+                        c=search.controller,
+                        f=search.function,
+                        args=row["id"],
+                    )
+                    rep_value = A(
+                        rep_value,
+                        _href=url,
+                    )
+                    first_cell = False
+
+                row_cells.append(TD(rep_value))
+
+            if row_cells:
+                tr = TR(*row_cells)
+
+                if search and row.created_on >= search.last_checked:
+                    # Records are either "new" or "modified"
+                    new_rows.append(tr)
+                else:
+                    mod_rows.append(tr)
+
+        if not new_rows and not mod_rows:
+            return ""
+
+        # Generate a table for the new records
+        if new_rows:
+            new_table = TABLE(
+                THEAD(head_row),
+                TBODY(*new_rows),
+            )
+        else:
+            new_table = None
+
+        # Generate a table for updated records
+        if mod_rows:
+            mod_table = TABLE(
+                THEAD(head_row),
+                TBODY(*mod_rows),
+            )
+        else:
+            mod_table = None
+
+        if search:
+            search_name = search.name
+        else:
+            search_name = ""
+
+        # Render the records via a template
+        message = current.response.render(
+            "msg/notification_email.html",
+            {
+                "search_name": search_name,
+                "new_table": new_table,
+                "mod_table": mod_table,
+                "system_name": current.deployment_settings.get_system_name(),
+                "resource_name": self.resource.name,
+            }
+        )
+
+        return message
 
     # -------------------------------------------------------------------------
     def search_interactive(self, r, **attr):
@@ -1329,6 +1448,7 @@ class S3Search(S3CRUD):
                 link = sep = ""
             tabs = []
 
+            vars = None
             if "location_id" in table or \
                "site_id" in table:
                 # Add a map for search results
@@ -1338,8 +1458,7 @@ class S3Search(S3CRUD):
                 # Build URL to load the features onto the map
                 if query:
                     vars = query.serialize_url(resource=resource)
-                else:
-                    vars = None
+
                 url = URL(extension="geojson",
                           args=None,
                           vars=vars)
@@ -1576,11 +1695,11 @@ class S3Search(S3CRUD):
         # (old JQuery Autocomplete uses "q" instead of "value")
         value = _vars.value or _vars.term or _vars.q or None
 
-        # We want to do case-insensitive searches
-        # (default anyway on MySQL/SQLite, but not PostgreSQL)
-        value = value.lower().strip()
-
         if _vars.field and _vars.filter and value:
+            # We want to do case-insensitive searches
+            # (default anyway on MySQL/SQLite, but not PostgreSQL)
+            value = value.lower().strip()
+
             s3db = current.s3db
             resource = self.resource
             table = self.table
@@ -1906,10 +2025,10 @@ class S3Search(S3CRUD):
 
     # -------------------------------------------------------------------------
     @staticmethod
-    def save_search(r, **attr):
+    def save(r, **attr):
         """
             Save a Search Filter in the user's profile
-            - db.pr_save_search
+            - db.pr_saved_search
 
             @ToDo: Deprecate
         """
@@ -1923,15 +2042,13 @@ class S3Search(S3CRUD):
                 filters[field_name] = value
 
         if filters:
-            query = URL(r=r, c=r.controller, f=r.function, args="search", vars=filters)
+            url = URL(r=r, c=r.controller, f=r.function, args="search", vars=filters)
 
             pe_id = current.auth.s3_user_pe_id(current.auth.user_id)
             table = current.s3db.pr_saved_search
 
             new_record_id = table.insert(
-                name=query,
-                pe_id=pe_id,
-                query=query,
+                url=url,
             )
 
             if new_record_id:
@@ -2214,13 +2331,12 @@ class S3OrganisationSearch(S3Search):
         # what uses "value"?
         value = _vars.term or _vars.value or _vars.q or None
 
-        # We want to do case-insensitive searches
-        # (default anyway on MySQL/SQLite, but not PostgreSQL)
-        value = value.lower().strip()
-
         filter = _vars.filter
 
         if filter and value:
+            # We want to do case-insensitive searches
+            # (default anyway on MySQL/SQLite, but not PostgreSQL)
+            value = value.lower().strip()
 
             if filter == "~":
                 query = (S3FieldSelector("parent.name").lower().like(value + "%")) | \
@@ -2236,7 +2352,7 @@ class S3OrganisationSearch(S3Search):
                             )
                 raise HTTP(400, body=output)
 
-        resource.add_filter(query)
+            resource.add_filter(query)
 
         limit = int(_vars.limit or 0)
         if (not limit or limit > MAX_SEARCH_RESULTS) and resource.count() > MAX_SEARCH_RESULTS:
