@@ -688,22 +688,22 @@ class S3ParsingModel(S3Model):
     def model(self):
 
         T = current.T
-        
+
         tablename = "msg_workflow"
         table = self.define_table(tablename,
                                   Field("source_task_id",
                                         label = T("Inbound Message Source"),
                                         represent = lambda id: \
-                                        self.source_represent(id, 
+                                        self.source_represent(id,
                                                               show_link=True)),
                                   Field("workflow_task_id",
-                                        label = T("Workflow")),                                          
+                                        label = T("Workflow")),
                                         *s3_meta_fields())
-                                  
+
         # ---------------------------------------------------------------------
         # user_opts contains the available users.
         now = current.request.utcnow
-        
+
         tablename = "msg_session"
         table = self.define_table(tablename,
                                   Field("email"),
@@ -714,14 +714,14 @@ class S3ParsingModel(S3Model):
                                         default = False),
                                   Field("sender"),
                                   *s3_meta_fields())
-                                  
-        
+
+
         return Storage()
     # -------------------------------------------------------------------------
     @staticmethod
     def source_represent(id, show_link = True):
         """ Represent a Message Source in the Workflow Table """
-    
+
         db = current.db
         stable = db.msg_inbound_email_settings
         wtable = db.msg_workflow
@@ -738,4 +738,164 @@ class S3ParsingModel(S3Model):
         else:
             return repr
 
+
+def search_subscription_notifications():
+    import urlparse
+    import urllib
+    import uuid
+    import Cookie
+    import json
+    from s3.s3resource import S3Resource, S3ResourceField, S3FieldSelector
+    from gluon.tools import fetch
+
+    print auth.is_logged_in()
+    print auth.basic()
+    return
+
+    pr_saved_search = S3Resource("pr", "saved_search")
+    frequency_field = S3ResourceField(pr_saved_search, "notification_frequency")
+
+    if request.args:
+        frequency = request.args[0]
+
+        if frequency in dict(frequency_field.requires.options()):
+            pr_saved_search.add_filter(S3FieldSelector("notification_frequency") == frequency)
+            saved_searches = pr_saved_search.load()
+
+            if saved_searches:
+                # Use the current session to make a new request
+                #cookie = Cookie.SimpleCookie()
+                #cookie[current.response.session_id_name] = current.response.session_id
+
+                # unlock the session or else the fetch will hang
+                #session._unlock(response)
+
+                for search in saved_searches:
+                    # fetch the latest records from the search
+
+                    # search.url has no host
+                    search_url = "%s%s" % (settings.get_base_public_url(), search.url)
+
+                    # create a temporary token for this search
+                    # that will be used when impersonating users
+                    auth_token = uuid.uuid4()
+                    search.update_record(auth_token=auth_token)
+                    db.commit()
+
+                    # parsed URL, break up the URL into its components
+                    purl = list(urlparse.urlparse(search_url))
+
+                    def send(search, message):
+                        if not message:
+                            return
+
+                        # Send the email
+                        msg.send_by_pe_id(
+                            search.pe_id,
+                            subject="%s Search Notification %s" % (
+                                settings.get_system_name_short(),
+                                search.name,
+                            ),
+                            message=message,
+                            sender_pe_id=None,
+                            pr_message_method="EMAIL",
+                            sender="noreply@sahana.com",
+                            fromaddress="sahana@sahana.com"
+                        )
+
+                    # should all records be sent in a single notification?
+                    if search.notification_batch:
+                        # query string parameters to be added to the search URL
+                        page_qs_parms = {
+                            "search_subscription": auth_token,
+                            "%s.modified_on__ge" % (search.resource_name): search.last_checked,
+                            "format": "email",
+                        }
+
+                        # turn the parameter list into a URL query string
+                        page_qs = urllib.urlencode(page_qs_parms)
+
+                        # put the URL back together
+                        page_url = urlparse.urlunparse(
+                            [
+                                purl[0], # scheme
+                                purl[1], # netloc
+                                purl[2], # path
+                                purl[3], # params
+                                "&".join([purl[4], page_qs]), # query
+                                purl[5], # fragment
+                            ]
+                        )
+                        message = fetch(page_url)
+
+                        # Send the email
+                        send(search, message)
+                    else: # !batch
+                        # query string parameters to be added to the search URL
+                        page_qs_parms = {
+                            "search_subscription": auth_token,
+                            "%s.modified_on__ge" % (search.resource_name): search.last_checked,
+                            "format": "json",
+                        }
+
+                        # turn the parameter list into a URL query string
+                        page_qs = urllib.urlencode(page_qs_parms)
+
+                        # put the URL back together
+                        page_url = urlparse.urlunparse(
+                            [
+                                purl[0], # scheme
+                                purl[1], # netloc
+                                purl[2], # path
+                                purl[3], # params
+                                "&".join([purl[4], page_qs]), # query
+                                purl[5], # fragment
+                            ]
+                        )
+                        # fetch the record list as json
+                        json_string = fetch(page_url)
+
+                        if json_string:
+                            records = json.loads(json_string)
+
+                            for record in records:
+                                email_qs = urllib.urlencode(
+                                    {
+                                        "search_subscription": auth_token,
+                                        "format": "email",
+                                        "%s.id__eq" % search.resource_name: record["id"],
+                                    }
+                                )
+                                email_url = urlparse.urlunparse(
+                                    [
+                                        purl[0], # scheme
+                                        purl[1], # netloc
+                                        purl[2], # path
+                                        purl[3], # params
+                                        email_qs, # query
+                                        purl[5], # fragment
+                                    ]
+                                )
+
+                                message = fetch(email_url)
+
+                                # Send the email
+                                send(search, message)
+
+                    # revoke the temporary token
+                    search.update_record(auth_token=None)
+                    db.commit()
+
+                # Update the saved searches to indicate they've just been checked
+                table = s3db.pr_saved_search
+                db(
+                    (table.notification_frequency == frequency) & \
+                    (table.deleted != True)
+                ).update(
+                    last_checked=datetime.datetime.utcnow()
+                )
+                db.commit()
+                return ""
+
+    raise HTTP(404) # not found
 # END =========================================================================

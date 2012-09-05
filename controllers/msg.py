@@ -1442,18 +1442,19 @@ def subscription():
 
     return s3_rest_controller()
 
-def test():
-    return "response.session_id: %s" % response.session_id
-
 # -----------------------------------------------------------------------------
 def search_subscription_notifications():
     import urlparse
     import urllib
     import uuid
-    from s3.s3resource import S3Resource, S3ResourceField, S3ResourceFilter, S3FieldSelector
-    from gluon.tools import fetch
     import Cookie
     import json
+    from s3.s3resource import S3Resource, S3ResourceField, S3FieldSelector
+    from gluon.tools import fetch
+
+    print auth.is_logged_in()
+    print auth.basic()
+    return
 
     pr_saved_search = S3Resource("pr", "saved_search")
     frequency_field = S3ResourceField(pr_saved_search, "notification_frequency")
@@ -1471,11 +1472,12 @@ def search_subscription_notifications():
                 #cookie[current.response.session_id_name] = current.response.session_id
 
                 # unlock the session or else the fetch will hang
-                session._unlock(response)
+                #session._unlock(response)
 
                 for search in saved_searches:
                     # fetch the latest records from the search
 
+                    # search.url has no host
                     search_url = "%s%s" % (settings.get_base_public_url(), search.url)
 
                     # create a temporary token for this search
@@ -1588,7 +1590,6 @@ def search_subscription_notifications():
                     search.update_record(auth_token=None)
                     db.commit()
 
-                return
                 # Update the saved searches to indicate they've just been checked
                 table = s3db.pr_saved_search
                 db(

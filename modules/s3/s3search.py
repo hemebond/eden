@@ -1232,6 +1232,13 @@ class S3Search(S3CRUD):
         else:
             search_name = ""
 
+        crud_strings = current.response.s3.crud_strings[self.resource.tablename]
+
+        if crud_strings:
+            resource_name = crud_strings.title_list
+        else:
+            resource_name = string.capwords(self.resource.name, "_")
+
         # Render the records via a template
         message = current.response.render(
             "msg/notification_email.html",
@@ -1240,7 +1247,7 @@ class S3Search(S3CRUD):
                 "new_table": new_table,
                 "mod_table": mod_table,
                 "system_name": current.deployment_settings.get_system_name(),
-                "resource_name": string.capwords(self.resource.name, "_"),
+                "resource_name": resource_name,
             }
         )
 

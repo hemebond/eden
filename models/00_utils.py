@@ -20,12 +20,12 @@ if current.request.is_local:
             # impersonate user
             user_id = current.auth.s3_get_user_id(search.pe_id)
 
-            # if user_id:
-            #     # impersonate the user who is subscribed to this saved search
-            #     current.auth.s3_impersonate(user_id)
-            # else:
-            #     # log out so the request is ANONYMOUS
-            #     current.auth.s3_impersonate(None)
+            if user_id:
+                # impersonate the user who is subscribed to this saved search
+                current.auth.s3_impersonate(user_id)
+            else:
+                # log out so the request is ANONYMOUS
+                current.auth.s3_impersonate(None)
 
 # =============================================================================
 # Check Permissions & fail as early as we can
