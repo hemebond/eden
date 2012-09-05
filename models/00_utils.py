@@ -5,12 +5,12 @@
 """
 
 
+# =============================================================================
+# for saved search
 if current.request.is_local:
     # this is a request made from the local server
-    print current.request.url
 
     search_subscription = current.request.get_vars.get("search_subscription", None)
-    #print "search_subscription: %s" % search_subscription
 
     if search_subscription:
         # We're doing a request for a saved search
@@ -20,11 +20,12 @@ if current.request.is_local:
             # impersonate user
             user_id = current.auth.s3_get_user_id(search.pe_id)
 
-            if user_id:
-                current.auth.s3_impersonate(user_id)
-
-            from s3.s3utils import s3_auth_user_represent
-            print "Impersonating %s" % s3_auth_user_represent(current.auth.user_id)
+            # if user_id:
+            #     # impersonate the user who is subscribed to this saved search
+            #     current.auth.s3_impersonate(user_id)
+            # else:
+            #     # log out so the request is ANONYMOUS
+            #     current.auth.s3_impersonate(None)
 
 # =============================================================================
 # Check Permissions & fail as early as we can

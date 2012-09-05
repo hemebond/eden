@@ -1447,99 +1447,49 @@ def test():
 
 # -----------------------------------------------------------------------------
 def search_subscription_notifications():
-    import cPickle
-    import cgi
     import urlparse
     import urllib
-    from s3.s3resource import S3Resource, S3ResourceField, S3ResourceFilter, S3FieldSelector
-    import urllib2
     import uuid
+    from s3.s3resource import S3Resource, S3ResourceField, S3ResourceFilter, S3FieldSelector
     from gluon.tools import fetch
     import Cookie
     import json
-    from s3.s3utils import s3_auth_user_represent
 
-    resource = S3Resource("pr", "saved_search")
-    frequency_field = S3ResourceField(resource, "saved_search.notification_frequency")
+    pr_saved_search = S3Resource("pr", "saved_search")
+    frequency_field = S3ResourceField(pr_saved_search, "notification_frequency")
 
     if request.args:
-        if request.args[0] in dict(frequency_field.requires.options()):
-            frequency = request.args[0]
-            table = s3db.pr_saved_search
+        frequency = request.args[0]
 
-            saved_searches = db((table.notification_frequency == frequency) & (table.deleted != True)).select()
+        if frequency in dict(frequency_field.requires.options()):
+            pr_saved_search.add_filter(S3FieldSelector("notification_frequency") == frequency)
+            saved_searches = pr_saved_search.load()
+
             if saved_searches:
-
-                notifiers = {
-                    "default": search_subscription_notifier_default,
-                    "EMAIL": search_subscription_notifier_email,
-                    #"TWITTER": search_subscription_formatter_twitter,
-                }
-
                 # Use the current session to make a new request
-                cookie = Cookie.SimpleCookie()
-                cookie[current.response.session_id_name] = current.response.session_id
+                #cookie = Cookie.SimpleCookie()
+                #cookie[current.response.session_id_name] = current.response.session_id
+
+                # unlock the session or else the fetch will hang
+                session._unlock(response)
 
                 for search in saved_searches:
                     # fetch the latest records from the search
 
-                    url = "%s%s" % (settings.get_base_public_url(), search.url)
+                    search_url = "%s%s" % (settings.get_base_public_url(), search.url)
 
+                    # create a temporary token for this search
+                    # that will be used when impersonating users
                     auth_token = uuid.uuid4()
                     search.update_record(auth_token=auth_token)
                     db.commit()
 
-                    parsed_url = urlparse.urlparse(url)
-                    query_parameters = urlparse.parse_qs(parsed_url.query)
+                    # parsed URL, break up the URL into its components
+                    purl = list(urlparse.urlparse(search_url))
 
-                    # query_string = "%s&%s" % (
-                    #     parsed_url.query,
-                    #     urllib.urlencode(
-                    #     )
-                    # )
-                    # url_list = list(parsed_url)
-                    # url_list[4] = query_string
-
-                    # impersonate user
-                    #user_id = current.auth.s3_get_user_id(search.pe_id)
-
-                    #if user_id:
-                    #    current.auth.s3_impersonate(user_id)
-                    #else:
-                    #    current.auth.s3_impersonate(None)
-
-                    #print "Impersonating %s" % s3_auth_user_represent(current.auth.user_id)
-
-
-                    # unlock the session or else the fetch will hang
-                    session._unlock(response)
-
-                    if search.notification_batch:
-                        # put the URL back together
-                        #new_url = urlparse.urlunparse(url_list)
-                        new_url = URL(
-                            scheme=True,
-                            c=search.controller,
-                            f=search.function,
-                            args=[
-                                "search",
-                            ],
-                            vars={
-                                "search_subscription": auth_token,
-                                "format": "email",
-                                "%s.modified_on__ge" % (search.resource_name): search.last_checked,
-                            }
-                        )
-                        new_url = "%s&%s" % (
-                            new_url,
-                            search.filters
-                        )
-                        print new_url
-
-                        message = fetch(new_url, cookie=cookie)
-
-                        print message
-                        continue
+                    def send(search, message):
+                        if not message:
+                            return
 
                         # Send the email
                         msg.send_by_pe_id(
@@ -1554,87 +1504,93 @@ def search_subscription_notifications():
                             sender="noreply@sahana.com",
                             fromaddress="sahana@sahana.com"
                         )
-                    else:
-                        json_url = URL(
-                            scheme=True,
-                            c=search.controller,
-                            f=search.function,
-                            args=[
-                                "search",
-                            ],
-                            vars={
-                                "search_subscription": auth_token,
-                                "format": "json",
-                                "%s.modified_on__ge" % (search.resource_name): search.last_checked,
-                            }
-                        )
-                        json_url = "%s&%s" % (
-                            json_url,
-                            search.filters
-                        )
-                        print json_url
 
+                    # should all records be sent in a single notification?
+                    if search.notification_batch:
+                        # query string parameters to be added to the search URL
+                        page_qs_parms = {
+                            "search_subscription": auth_token,
+                            "%s.modified_on__ge" % (search.resource_name): search.last_checked,
+                            "format": "email",
+                        }
+
+                        # turn the parameter list into a URL query string
+                        page_qs = urllib.urlencode(page_qs_parms)
+
+                        # put the URL back together
+                        page_url = urlparse.urlunparse(
+                            [
+                                purl[0], # scheme
+                                purl[1], # netloc
+                                purl[2], # path
+                                purl[3], # params
+                                "&".join([purl[4], page_qs]), # query
+                                purl[5], # fragment
+                            ]
+                        )
+                        message = fetch(page_url)
+
+                        # Send the email
+                        send(search, message)
+                    else: # !batch
+                        # query string parameters to be added to the search URL
+                        page_qs_parms = {
+                            "search_subscription": auth_token,
+                            "%s.modified_on__ge" % (search.resource_name): search.last_checked,
+                            "format": "json",
+                        }
+
+                        # turn the parameter list into a URL query string
+                        page_qs = urllib.urlencode(page_qs_parms)
+
+                        # put the URL back together
+                        page_url = urlparse.urlunparse(
+                            [
+                                purl[0], # scheme
+                                purl[1], # netloc
+                                purl[2], # path
+                                purl[3], # params
+                                "&".join([purl[4], page_qs]), # query
+                                purl[5], # fragment
+                            ]
+                        )
                         # fetch the record list as json
-                        json_string = fetch(json_url, cookie=cookie)
+                        json_string = fetch(page_url)
 
-                        # log out after making the request
-                        records = json.loads(json_string)
+                        if json_string:
+                            records = json.loads(json_string)
 
-                        for record in records:
-                            record_url = URL(
-                                scheme=True,
-                                c=search.controller,
-                                f=search.function,
-                                args=[
-                                    "search",
-                                ],
-                                vars={
-                                    "search_subscription": auth_token,
-                                    "format": "email",
-                                    "%s.id__eq" % search.resource_name: record["id"], 
-                                }
-                            )
-                            print record_url
+                            for record in records:
+                                email_qs = urllib.urlencode(
+                                    {
+                                        "search_subscription": auth_token,
+                                        "format": "email",
+                                        "%s.id__eq" % search.resource_name: record["id"],
+                                    }
+                                )
+                                email_url = urlparse.urlunparse(
+                                    [
+                                        purl[0], # scheme
+                                        purl[1], # netloc
+                                        purl[2], # path
+                                        purl[3], # params
+                                        email_qs, # query
+                                        purl[5], # fragment
+                                    ]
+                                )
 
-                            message = fetch(record_url, cookie=cookie)
+                                message = fetch(email_url)
 
-                            print message
-                            continue
+                                # Send the email
+                                send(search, message)
 
-                            # Send the email
-                            msg.send_by_pe_id(
-                                search.pe_id,
-                                subject="%s Search Notification %s" % (
-                                    settings.get_system_name_short(),
-                                    search.name,
-                                ),
-                                message=message,
-                                sender_pe_id=None,
-                                pr_message_method="EMAIL",
-                                sender="noreply@sahana.com",
-                                fromaddress="sahana@sahana.com"
-                            )
+                    # revoke the temporary token
+                    search.update_record(auth_token=None)
+                    db.commit()
 
-                    # Create the resource
-                    #search_resource = S3Resource(search.prefix, search.resource_name)
-                    #filters = S3ResourceFilter.parse_url_query(search_resource, filters)[resource_name]
-
-                    # Add the saved filters
-                    #for filter in filters:
-                    #    search_resource.add_filter(filter)
-
-                    # Only records modified after the last_checked datetime
-                    #search_resource.add_filter(S3FieldSelector("modified_on") >= search.last_checked)
-
-                    # if records:
-                    #     if search.notification_method in notifiers:
-                    #         method = search.notification_method
-                    #     else:
-                    #         method = "default"
-
-                    #     notifiers[method](search, search_resource, records)
                 return
                 # Update the saved searches to indicate they've just been checked
+                table = s3db.pr_saved_search
                 db(
                     (table.notification_frequency == frequency) & \
                     (table.deleted != True)
@@ -1644,170 +1600,6 @@ def search_subscription_notifications():
                 return ""
 
     raise HTTP(404) # not found
-
-# -----------------------------------------------------------------------------
-def search_subscription_notifier_default(search, resource, records, **kwargs):
-    """
-        Gets records from a resource and returns an HTML list.
-        This is only used when there isn't a dedicated formatter
-        for a particular method. Quick and dirty.
-
-        @param search: the saved search object
-        @param resource: the resource, with filters, to get records from
-    """
-    import cgi
-
-    output = ""
-
-    # Fetched the records from the resource
-    for row in resource.sqltable(as_rows=True):
-        url = URL(c=resource.prefix, f=resource.name, args=row.id)
-        #string = current.manager.represent(field, record=row)
-        output += "<li><a href=\"%s\">%s</a></li>" % (url, cgi.escape(str(row)))
-
-    return output
-
-# -----------------------------------------------------------------------------
-def search_subscription_notifier_email(search, resource, records, **kwargs):
-    """
-        Sends an email for a search subscription. Email contains an HTML table
-        with one or more records.
-
-        @param search: the saved search object
-        @param resource: the resource, with filters, to get records from
-    """
-
-    fields = [f for f in resource.readable_fields() if f.name != "id"] # We don't want to show the "id" field at all
-    head_row = TR([TH(f.label) for f in fields if f.name != "id"])
-    new_rows = []
-    mod_rows = []
-
-    json_resource_name = "$_%s_%s" % (
-        resource.prefix,
-        resource.name
-    )
-
-    for row in records[json_resource_name]:
-        first_cell = False # disabled
-        row_cells = []
-
-        for f in fields:
-            if f.name in row:
-                field = row[f.name]
-            elif "@%s" % f.name in row:
-                field = row["@%s" % f.name]
-            elif "$k_%s" % f.name in row:
-                field = row["$k_%s" % f.name]
-            else:
-                field = None
-
-            if field:
-                #rep_value = current.manager.represent(f, record=row)
-                #rep_value = row.get(f.name, "")
-                #rep_value = f.represent(row[f.name])
-                if isinstance(field, dict):
-                    rep_value = field["$"]
-                else:
-                    rep_value = field
-
-                # Hyperlink the text in the first
-                # cell to the record page
-                if first_cell:
-                    url = URL(
-                        scheme=True,
-                        c=search.controller,
-                        f=search.function,
-                        args=row["id"],
-                    )
-                    rep_value = A(
-                        rep_value,
-                        _href=url,
-                    )
-                    first_cell = False
-            else:
-                rep_value = ""
-
-            row_cells.append(TD(rep_value))
-
-        if row_cells:
-            tr = TR(*row_cells)
-
-            # Records are either "new" or "modified"
-            if "created_on" in row:
-                if row.created_on >= search.last_checked:
-                    new_rows.append(tr)
-            else:
-                mod_rows.append(tr)
-
-    def send(new_rows=[], mod_rows=[]):
-        """
-            Puts the rows into tables, renders them
-            using a template, and then
-            sends the notification (email)
-        """
-        if not new_rows and not mod_rows:
-            return
-
-        # Generate a table for the new records
-        if new_rows:
-            new_table = TABLE(
-                THEAD(head_row),
-                TBODY(*new_rows),
-            )
-        else:
-            new_table = None
-
-        # Generate a table for updated records
-        if mod_rows:
-            mod_table = TABLE(
-                THEAD(head_row),
-                TBODY(*mod_rows),
-            )
-        else:
-            mod_table = None
-
-        # Render the records via a template
-        message = response.render(
-            "msg/notification_email.html",
-            {
-                "search": search,
-                "new_table": new_table,
-                "mod_table": mod_table,
-                "system_name": settings.get_system_name(),
-                "resource_name": resource.name,
-            }
-        )
-
-        #print "Message: %s" % message
-        #return
-
-        # Send the email
-        msg.send_by_pe_id(
-            search.pe_id,
-            subject="%s Search Notification %s" % (
-                settings.get_system_name_short(),
-                search.name,
-            ),
-            message=message,
-            sender_pe_id=None,
-            pr_message_method="EMAIL",
-            sender="noreply@sahana.com",
-            fromaddress="sahana@sahana.com"
-        )
-
-    if search.notification_batch:
-        # Batch notifications send all rows at once
-        send(
-            new_rows,
-            mod_rows,
-        )
-    else:
-        # Non-batch notifications send each row in its own message
-        for row in new_rows:
-            send(new_rows=[row])
-
-        for row in mod_rows:
-            send(mod_rows=[row])
 
 # =============================================================================
 # Enabled only for testing:

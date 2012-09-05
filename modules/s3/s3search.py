@@ -51,6 +51,7 @@ from s3validators import *
 from s3widgets import S3OrganisationHierarchyWidget, s3_grouped_checkboxes_widget
 
 from s3resource import S3FieldSelector, S3Resource
+import string
 
 __all__ = ["S3SearchWidget",
            "S3SearchSimpleWidget",
@@ -1117,8 +1118,7 @@ class S3Search(S3CRUD):
                         "url": r.url(
                             # can't use the search method handler because then
                             # we can't get different formats
-                            #method="search", # want to see search form
-                            method="",
+                            method="search", # want to see search form
                             vars=query.serialize_url(self.resource),
                         ),
                         "filters": urllib.urlencode(query.serialize_url(self.resource)),
@@ -1174,7 +1174,7 @@ class S3Search(S3CRUD):
         mod_rows = []
 
         for row in self.resource.load():
-            first_cell = False # disabled
+            first_cell = True # disabled
             row_cells = []
 
             for f in fields:
@@ -1182,7 +1182,7 @@ class S3Search(S3CRUD):
 
                 # Hyperlink the text in the first
                 # cell to the record page
-                if first_cell:
+                if first_cell and search:
                     url = URL(
                         scheme=True,
                         c=search.controller,
@@ -1195,7 +1195,7 @@ class S3Search(S3CRUD):
                     )
                     first_cell = False
 
-                row_cells.append(TD(rep_value))
+                row_cells.append(TD(XML(rep_value)))
 
             if row_cells:
                 tr = TR(*row_cells)
@@ -1240,7 +1240,7 @@ class S3Search(S3CRUD):
                 "new_table": new_table,
                 "mod_table": mod_table,
                 "system_name": current.deployment_settings.get_system_name(),
-                "resource_name": self.resource.name,
+                "resource_name": string.capwords(self.resource.name, "_"),
             }
         )
 
