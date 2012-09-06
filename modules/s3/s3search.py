@@ -1016,16 +1016,6 @@ class S3Search(S3CRUD):
         elif "is_autocomplete" in attr:
             output = self.search_autocomplete(r, **attr)
 
-        # Save search
-        elif "save" in r.vars :
-            r.interactive = False
-            output = self.save(r, **attr)
-
-        # Interactive or saved search
-        elif "load" in r.vars or \
-                r.interactive and self.__interactive:
-            output = self.search_interactive(r, **attr)
-
         # SSPag response => CRUD native
         elif format == "aadata" and self.__interactive:
             output = self.select(r, **attr)
@@ -2030,64 +2020,6 @@ class S3Search(S3CRUD):
 
         return jsons(output)
 
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def save(r, **attr):
-        """
-            Save a Search Filter in the user's profile
-            - db.pr_saved_search
-
-            @ToDo: Deprecate
-        """
-
-        search_vars = json.load(r.body)
-        s_vars = {}
-
-        filters = {}
-        for field_name, value in search_vars["criteria"].items():
-            if value:# and field_name[0] != "_":
-                filters[field_name] = value
-
-        if filters:
-            url = URL(r=r, c=r.controller, f=r.function, args="search", vars=filters)
-
-            pe_id = current.auth.s3_user_pe_id(current.auth.user_id)
-            table = current.s3db.pr_saved_search
-
-            new_record_id = table.insert(
-                url=url,
-            )
-
-            if new_record_id:
-                person_id = current.auth.s3_logged_in_person()
-                return URL(c="pr", f="person", args=[person_id, "saved_search", new_record_id])
-
-        return
-
-
-#        for i in search_vars.iterkeys():
-#            if str(i) == "criteria" :
-#                s_dict = {}
-#                c_dict = search_vars[i]
-#                for j in c_dict.iterkeys():
-#                    key = str(j)
-#                    s_dict[key] = str(c_dict[j])
-#                s_vars[str(i)] = s_dict
-#            else:
-#                key = str(i)
-#                s_vars[key] = str(search_vars[i])
-#
-#        import cPickle
-#        search_str = cPickle.dumps(s_vars)
-#        table = current.s3db.pr_save_search
-#        query = (table.user_id == current.auth.user_id) & \
-#                (table.search_vars == search_str)
-#        if len(current.db(query).select(table.id)) == 0:
-#            new_search = {}
-#            new_search["search_vars"] = search_str
-#            #_id = table.insert(**new_search)
-#        msg = "success"
-#        return msg
 
 # =============================================================================
 class S3LocationSearch(S3Search):
