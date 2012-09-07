@@ -449,6 +449,33 @@ def report():
 def task():
     """ RESTful CRUD controller """
 
+    from s3.s3forms import S3SQLCustomForm, S3SQLInlineComponent
+
+    crud_form = S3SQLCustomForm(
+        "name",
+        "description",
+        "source",
+        "priority",
+        "pe_id",
+        "date_due",
+        "time_estimated",
+        "time_actual",
+        "status",
+        S3SQLInlineComponent(
+            "time",
+            name="time",
+            label=T("Time Entry"),
+            fields=[
+                "person_id",
+                "date",
+                "hours",
+                "comments"
+            ],
+        ),
+    )
+
+    s3db.configure("project_task", crud_form=crud_form)
+
     return s3db.project_task_controller()
 
 # =============================================================================
