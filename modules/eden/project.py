@@ -3160,7 +3160,9 @@ class S3ProjectTaskModel(S3Model):
         tablename = "project_task_activity"
         table = define_table(tablename,
                              task_id(),
-                             self.project_activity_id(),
+                             self.project_activity_id(
+                                comment=self.task_activity_comment(),
+                             ),
                              *s3_meta_fields())
 
         # ---------------------------------------------------------------------
@@ -3714,6 +3716,37 @@ class S3ProjectTaskModel(S3Model):
             db(query).update(time_actual=hours)
 
         return
+
+    @staticmethod
+    def task_activity_comment():
+        """
+            Define the comment widget for the activity field on tasks
+        """
+        T = current.T
+
+        ACTIVITY_TOOLTIP = T("If you don't see the activity in the list, you can add a new one by clicking link 'Add Activity'.")
+        ADD_ACTIVITY = T("Add Activity")
+
+        comment = S3AddResourceLink(
+            ADD_ACTIVITY,
+            c="project",
+            f="activity",
+            tooltip=ACTIVITY_TOOLTIP
+        )
+
+        options = {
+            "FilterField": "project_id",
+            "Field": "activity_id",
+            "FieldPrefix": "project",
+            "FieldResource": "activity",
+        }
+
+        current.response.s3.jquery_ready.append(
+            "S3FilterFieldChange(%s);" % json.dumps(options)
+        )
+
+        return comment
+
 
 # =============================================================================
 class S3ProjectTaskHRMModel(S3Model):
