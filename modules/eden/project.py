@@ -2232,17 +2232,24 @@ class S3ProjectActivityModel(S3Model):
 
         if row:
             return row.name
-        elif not id:
+
+        if not id:
             return current.messages.NONE
 
         db = current.db
-        table = db.project_activity
-        r = db(table.id == id).select(table.name,
-                                      limitby = (0, 1)).first()
-        try:
-            return r.name
-        except:
-            return current.messages.UNKNOWN_OPT
+        row = db(
+                (db.project_activity.id == id) & \
+                (db.project_activity.project_id == db.project_project.id)
+            ).select(
+                db.project_activity.name,
+                db.project_project.code,
+                limitby=(0, 1)
+            ).first()
+
+        return "%s - %s" % (
+            row.project_project.code,
+            row.project_activity.name,
+        )
 
     # -------------------------------------------------------------------------
     @staticmethod
