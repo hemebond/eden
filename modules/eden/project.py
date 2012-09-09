@@ -2227,29 +2227,33 @@ class S3ProjectActivityModel(S3Model):
 
     # -------------------------------------------------------------------------
     @staticmethod
-    def project_activity_represent(id, row=None):
-        """ FK representation """
-
-        if row:
-            return row.name
-
-        if not id:
+    def project_activity_represent(row):
+        """
+            Show activities with a prefix of the project code
+        """
+        if not row:
             return current.messages.NONE
 
         db = current.db
-        row = db(
-                (db.project_activity.id == id) & \
-                (db.project_activity.project_id == db.project_project.id)
-            ).select(
-                db.project_activity.name,
-                db.project_project.code,
-                limitby=(0, 1)
-            ).first()
+        s3db = current.s3db
 
-        return "%s - %s" % (
-            row.project_project.code,
-            row.project_activity.name,
-        )
+        ptable = s3db.project_project
+        atable = s3db.project_activity
+
+        # Fetch the project record by itself
+        project = db(
+            (ptable.id == row.project_id)
+        ).select(
+            ptable.code,
+        ).first()
+
+        if project:
+            return "%s - %s" % (
+                project.code,
+                row.name,
+            )
+        else:
+            return row.name
 
     # -------------------------------------------------------------------------
     @staticmethod

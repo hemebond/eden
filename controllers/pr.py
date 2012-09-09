@@ -148,10 +148,8 @@ def person():
 
             elif r.component_name == "saved_search":
                 if r.method == "load":
-                    record_id = r.args[2]
-
-                    if record_id:
-                        record = s3db.pr_saved_search[record_id]
+                    if r.component_id:
+                        record = s3db.pr_saved_search[r.component_id]
                         if record:
                             redirect(record.url)
                         else:

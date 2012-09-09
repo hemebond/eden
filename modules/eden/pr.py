@@ -2326,21 +2326,7 @@ class S3SavedSearch(S3Model):
 
         for field_filter, values in filters.items():
             field_selector, filter = field_filter.split("__")
-
-            # field names are sometimes concatenated with pipes if they
-            # cover multiple fields, e.g., simple search
-            if "|" in field_selector:
-                selectors = field_selector.split("|")
-            else:
-                selectors = [field_selector]
-
-            for index, selector in enumerate(selectors):
-                field = S3ResourceField(resource, selector)
-                # Fixme: should be unicode but balks
-                selectors[index] = str(field.label)
-
-            # join the nice labels back together
-            field_labels.append("|".join(selectors))
+            lf = S3FieldSelector(field_selector).resolve(resource)
 
             # parse the values back out
             values = S3ResourceFilter._parse_value(values)
@@ -2348,22 +2334,42 @@ class S3SavedSearch(S3Model):
             if not isinstance(values, list):
                 values = [values]
 
-            for index, value in enumerate(values):
-                if s3_has_foreign_key(field.field):
-                    try:
-                        value = int(value) # some represent need ints
-                    except:
-                        pass
+            # field names are sometimes concatenated with pipes if they
+            # cover multiple fields, e.g., simple search
+            if "|" in field_selector:
+                selectors = field_selector.split("|")
 
-                # need to convert to a string because some represent
-                # functions return web2py HTML objects
-                # s3_unicode balks on web2py HTML objects
-                try:
-                    rep_value = field.represent(value, show_link=False)
-                except:
-                    rep_value = field.represent(value)
-                values[index] = str(rep_value)
+                labels = []
+                for selector in selectors:
+                    field = S3ResourceField(resource, selector)
 
+                    # Fixme: should be unicode but balks
+                    labels.append(s3_unicode(field.label))
+
+                # represent the value as a unicode string
+                for index, value in enumerate(values):
+                    values[index] = s3_unicode(value)
+            else:
+                field = S3ResourceField(resource, field_selector)
+                labels = [s3_unicode(field.label)]
+
+                for index, value in enumerate(values):
+                    # some represent need ints
+                    if s3_has_foreign_key(field.field):
+                        try:
+                            value = int(value)
+                        except:
+                            pass
+
+                    rep_value = current.manager.represent(
+                        lf.field,
+                        value,
+                        strip_markup=True,
+                    )
+                    values[index] = rep_value
+
+            # join the nice labels back together
+            field_labels.append("|".join(labels))
             nice_values.append(",".join(values))
 
         query_list = []
@@ -2373,6 +2379,7 @@ class S3SavedSearch(S3Model):
         query_list = " AND ".join(query_list)
 
         return query_list
+
 
 # =============================================================================
 class S3PersonPresence(S3Model):

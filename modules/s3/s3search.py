@@ -1012,6 +1012,10 @@ class S3Search(S3CRUD):
         elif "is_autocomplete" in attr:
             output = self.search_autocomplete(r, **attr)
 
+        # Interactive or saved search
+        elif r.interactive and self.__interactive:
+            output = self.search_interactive(r, **attr)
+
         # SSPag response => CRUD native
         elif format == "aadata" and self.__interactive:
             output = self.select(r, **attr)
