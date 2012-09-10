@@ -3239,25 +3239,71 @@ class S3ProjectTaskModel(S3Model):
         # Virtual Fields
         table.virtualfields.append(S3ProjectTimeVirtualFields())
 
-        list_fields = ["id",
-                       (T("Project"), "project"),
-                       (T("Activity"), "activity"),
-                       "task_id",
-                       "person_id",
-                       "date",
-                       "hours",
-                       "comments",
-                       ]
-        report_fields = list_fields + [(T("Day"), "day")]
+        list_fields = [
+            "id",
+            (T("Project"), "project"),
+            (T("Activity"), "activity"),
+            "task_id",
+            "person_id",
+            "date",
+            "hours",
+            "comments",
+        ]
 
-        configure(tablename,
-                  onaccept=self.time_onaccept,
-                  report_options=Storage(
-                        rows = report_fields,
-                        cols = report_fields,
-                        facts = report_fields,
-                    ),
-                  list_fields=list_fields)
+        report_fields = list_fields + [
+            (T("Day"), "day"),
+            (T("Week"), "week")
+        ]
+
+        task_time_search = [
+            S3SearchOptionsWidget(
+                name="person_id",
+                label = T("Person"),
+                field = "person_id",
+                cols = 3
+            ),
+            S3SearchOptionsWidget(
+                name="project",
+                label = T("Project"),
+                field = "project",
+                options = self.task_project_opts,
+                cols = 3
+            ),
+            S3SearchOptionsWidget(
+                name="activity",
+                label = T("Activity"),
+                field = "activity",
+                options = self.task_activity_opts,
+                cols = 3
+            ),
+            S3SearchMinMaxWidget(
+                name="date",
+                label=T("Date"),
+                field="date",
+            ),
+        ]
+
+        configure(
+            tablename,
+            onaccept=self.time_onaccept,
+            search_method=S3Search(
+                advanced=task_time_search,
+            ),
+            report_options=Storage(
+                rows = report_fields,
+                cols = report_fields,
+                facts = report_fields,
+                defaults = Storage(
+                    rows = "project",
+                    cols = "person_id",
+                    fact = "hours",
+                    aggregate = "sum",
+                    totals = True
+                ),
+                search=task_time_search,
+            ),
+            list_fields=list_fields
+        )
 
         # ---------------------------------------------------------------------
         # Pass variables back to global scope (s3db.*)
@@ -4644,6 +4690,20 @@ class S3ProjectTimeVirtualFields:
             return default
 
         return thisdate.date().strftime("%d %B")
+
+    # -------------------------------------------------------------------------
+    def week(self):
+        """
+            Rturns the date of the Monday previous to this time entry
+        """
+        # convert the datetime to a date
+        day = self.project_time.date.date()
+
+        # count back to monday
+        monday = day - datetime.timedelta(days=day.weekday())
+
+        return monday
+
 
 # =============================================================================
 def project_ckeditor():
