@@ -3241,6 +3241,7 @@ class S3ProjectTaskModel(S3Model):
 
         list_fields = ["id",
                        (T("Project"), "project"),
+                       (T("Activity"), "activity"),
                        "task_id",
                        "person_id",
                        "date",
@@ -4586,6 +4587,38 @@ class S3ProjectTimeVirtualFields:
             return project.name
         else:
             return None
+
+    # -------------------------------------------------------------------------
+    def activity(self):
+        """
+            Activity associated with this time entry
+            - used by the 'Project Time' report
+        """
+
+        try:
+            task_id = self.project_time.task_id
+        except AttributeError:
+            return current.messages.NONE
+
+        db = current.db
+        s3db = current.s3db
+
+        task_activities = s3db.project_task_activity
+        activities = s3db.project_activity
+
+        activity = db(
+            (task_activities.deleted != True) & \
+            (task_activities.task_id == task_id) & \
+            (task_activities.activity_id == activities.id)
+        ).select(
+            activities.name,
+            limitby=(0, 1),
+        ).first()
+
+        if activity:
+            return activity.name
+        else:
+            return current.messages.NONE
 
     # -------------------------------------------------------------------------
     def day(self):
