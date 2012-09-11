@@ -16,6 +16,8 @@
 #home_col1 {
     width: 650px;
     float: left;
+    line-height: 125%;
+    font-size: 1.2em;
 }
 #home_col2 {
     float: left;
@@ -44,8 +46,8 @@
     color: white;
 }
 
-img#list_img, 
-img#graph_img, 
+img#list_img,
+img#graph_img,
 img#map_img  {
     height: 100px;
 	margin: 5px 25px 0 0
@@ -78,7 +80,7 @@ img#matrix_img {
 #what_box h2,
 #how_help_box h2,
 #how_start_box h2 {
-    color: black; 
+    color: black;
     text-transform: none;
     font-size: 14px;
 }
@@ -90,7 +92,7 @@ img#matrix_img {
     padding-top: 15px;
 }
 #how_help_box {
-    float: left; 
+    float: left;
     width: 400px;
 }
 #home_map_img {
@@ -98,7 +100,7 @@ img#matrix_img {
     padding-top: 15px;
 }
 #how_start_box {
-    clear: both; 
+    clear: both;
     width: 610px;
 }
 #tour_div,
@@ -124,7 +126,7 @@ img#matrix_img {
     padding: 10px 7px 10px 8px;
     margin: 10px 0 0 10px;
 }
-             
+
 #login_div {
     border: 1px solid grey;
 }
@@ -132,7 +134,7 @@ img#matrix_img {
 #stats_div,
 #market_div	{
     font-size: 1.2em;
-    border: 1px solid #02589E; 
+    border: 1px solid #02589E;
     background: #E8E8E8;
 }
 #stats_div div {
@@ -140,7 +142,7 @@ img#matrix_img {
     margin-bottom: 5px;
 }
 #stats_div td:first-child {
-    color: #02589E; 
+    color: #02589E;
     min-width: 20px;
 }
 
@@ -171,7 +173,7 @@ img#matrix_img {
 h2#search_label {
     margin-right: 10px;
     float: left;
-}               
+}
 
 #adv_filter_label {
     margin: 10px 0 0 20px;
@@ -193,7 +195,7 @@ h2#search_label {
 .adv_filter_field_label {
     text-transform: uppercase;
     color: grey;
-    font-weight: 700; 
+    font-weight: 700;
     margin: 5px 0 2px 40px;
     height: 16px;
 }
@@ -247,7 +249,7 @@ h2#search_label {
 }
 
 #matrix_link,
-#map_link,                          
+#map_link,
 #graph_list li {
     font-size: 1.2em;
     margin-bottom: 3px;
@@ -257,13 +259,13 @@ h2#search_label {
 }
 #graph_img,
 #graph_list {
-    float: left; 
+    float: left;
     margin:10px;
-} 
+}
 #graph_list {
     margin-left: 15px;
 }
-#matrix_link,		   
+#matrix_link,
 #map_link {
     margin-top: 10px;
 }
@@ -288,23 +290,23 @@ h1#graph_field_select_h1 {
     margin-bottom: 5px;
     line-height: 100%;
 }
-                       
+
 /* Matrix Report */
 #select_z_div h2 {
     clear: both;
-}	
+}
 #select_z_div select,
 #display_table_btn {
     margin: 10px 10px 10px 20px;
 }
 #matrix_table
 .matrix_cell{
-    font-size: 1.4em;			  
+    font-size: 1.4em;
 	margin: 5px;
 }
 .matrix_cell a {
     padding-right: 20px;
-    text-decoration: none; 
+    text-decoration: none;
     color: #000000;
 	background: url(../../img/icon_blue_plus15px.png) no-repeat right;
 }
@@ -330,4 +332,4 @@ h1#graph_field_select_h1 {
 #matrix_table .myfilter_a {
     padding-top: 5px;
 }
-                       
+
