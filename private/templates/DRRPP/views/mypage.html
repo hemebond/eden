@@ -1,0 +1,72 @@
+{{extend "layout.html"}}
+
+<h1>{{=T("What is 'My Page'?")}}</h1>
+
+{{=P(
+	T("'My Page' is a private space which allows you to "),
+	STRONG(
+		T("save your favourite searches, graphs, matrix reports and maps"),
+	),
+	T(" for later viewing. It is also where you can "),
+	STRONG(
+		T("manage the projects you are authorised to edit"),
+	),
+	T("."),
+)}}
+
+{{=P(
+	T("You may also use 'My Page' to "),
+	STRONG(
+		T("subscribe to DRR Project Portal emails"),
+	),
+	T("; just click the 'Subscribe' button next to any searches, graphs, matrix reports, or maps which you have filtered and when new projects fitting your filter criteria are entered (countries, hazards, themes, organisations, donors etc.) you will be emailed."),
+)}}
+
+{{=P(
+	T("In order to use this service, you must first "),
+	A(
+		T("register"),
+		_href=URL(
+			c="default",
+			f="user",
+			args=["register"],
+		)
+	),
+	T(" with the DRR Project Portal."),
+)}}
+
+{{=UL(
+	LI(
+		T("I am a new user and want to "),
+		A(
+			T("register"),
+			_href=URL(
+				c="default",
+				f="user",
+				args=["register"],
+			),
+		),
+	),
+	LI(
+		T("I have already registered and want to "),
+		A(
+			T("login"),
+			_href=URL(
+				c="default",
+				f="user",
+				args=["login"],
+			),
+		),
+	),
+	LI(
+		A(
+			T("About"),
+			_href=URL(
+				c="default",
+				f="index",
+				args=["about"],
+			),
+		),
+		T(" the DRR Project Portal"),
+	),
+)}}

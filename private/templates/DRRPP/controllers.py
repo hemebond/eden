@@ -233,6 +233,7 @@ class index():
             languages.get(opt, current.messages.UNKNOWN_OPT)
 
         request.args = ["login"]
+        auth.settings.formstyle = "divs"
         login = auth()
         login[0][-1][1][0] = INPUT_BTN(_type = "submit",
                                       _value = T("Login"))
@@ -638,7 +639,24 @@ class about():
     """
 
     def __call__(self):
-        return "tbc"
+        response = current.response
+        request = current.request
+        T = current.T
+
+        view = path.join(request.folder, "private", "templates",
+                         "DRRPP", "views", "about.html")
+        try:
+            # Pass view as file not str to work in compiled mode
+            response.view = open(view, "rb")
+        except IOError:
+            from gluon.http import HTTP
+            raise HTTP("404", "Unable to open Custom View: %s" % view)
+
+        response.title = T("About")
+
+        return dict(
+            title=T("About"),
+        )
 
 # =============================================================================
 class analysis():
@@ -647,9 +665,9 @@ class analysis():
     """
 
     def __call__(self):
-        T = current.T
         response = current.response
         request = current.request
+        T = current.T
 
         view = path.join(request.folder, "private", "templates",
                          "DRRPP", "views", "analysis.html")
@@ -663,7 +681,7 @@ class analysis():
         response.title = T("Project Analysis")
 
         return dict(
-            title = T("Project Analysis"),
+            title=T("Project Analysis"),
         )
 
 # =============================================================================
@@ -673,7 +691,37 @@ class mypage():
     """
 
     def __call__(self):
-        return "tbc"
+        response = current.response
+        request = current.request
+        auth = current.auth
+        T = current.T
+
+        if not auth.is_logged_in():
+            view = path.join(request.folder, "private", "templates",
+                             "DRRPP", "views", "mypage.html")
+            try:
+                # Pass view as file not str to work in compiled mode
+                response.view = open(view, "rb")
+            except IOError:
+                from gluon.http import HTTP
+                raise HTTP("404", "Unable to open Custom View: %s" % view)
+
+            response.title = T("My Page")
+
+            return dict(
+                title=T("My Page"),
+            )
+        else:
+            person_id = auth.s3_user_pe_id(auth.user.id)
+            redirect(
+                URL(
+                    c="pr",
+                    f="person",
+                    args=[
+                        person_id,
+                    ],
+                )
+            )
 
 # =============================================================================
 class organisations():

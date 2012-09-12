@@ -22,6 +22,10 @@ textarea {
     font: 100%/125% Arial, Helvetica, sans-serif;
 }
 
+strong {
+    font-weight: bold;
+}
+
 /*** Typography ***/
 #content {
     margin: 0px;
@@ -313,4 +317,12 @@ div.form-container form input[type=submit] {
     border-radius: 12px;
     padding: 0.2em 0.5em;
     background-color: white;
+}
+
+#about_logos ul {
+    list-style: none;
+    display: inline;
+}
+#about_logos li {
+    display: inline;
 }

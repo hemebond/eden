@@ -129,15 +129,7 @@ img#matrix_img {
 #login_div {
     border: 1px solid grey;
 }
-#login_div table,
-#login_div tbody,
-#login_div table tr,
-#login_div table td {
-    display: block;
-}
-#login_div input[type=text] {
-    max-width: 90%;
-}
+
 #register-btn {
     float: left;
 }

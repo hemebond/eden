@@ -2,24 +2,6 @@
 
 /* Project Analysis page */
 
-#page_project_analysis h2 {
-    font-family: "EraserRegular";
-    text-transform: uppercase;
-    color: #F5902E;
-    font-size: 1.4em;
-    line-height: 1em;
-    margin: 0 0 5px 0;
-}
-
-#page_project_analysis h3 {
-    text-transform: uppercase;
-    color: #F5902E;
-    font-size: 1.2em;
-    margin: 0 0 5px 0;
-    text-decoration: none;
-    font-weight: bold;
-}
-
 #page_project_analysis .page_column {
     padding: 15px;
 	float: left;
