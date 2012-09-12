@@ -16,7 +16,7 @@
 
 #modulenav {
     margin: 0 0 0 15px;
-    text-transform: capitalize;
+    text-transform: uppercase;
 }
 #modulenav,
 #modulenav li,
@@ -81,9 +81,10 @@
     background: none;
 }
 
-#modulenav li a div.selected,
-#modulenav li a div.hovered,
+#modulenav li.selected a div,
+#modulenav li.hovered a div,
 #modulenav li a div:hover {
+    color: #F5902E;
     background: url(img/menu_white.png) no-repeat;
 }
 

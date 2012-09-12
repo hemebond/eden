@@ -299,3 +299,8 @@ span.tab_prev_active {
 span.tab_next_active {
     color: #000000;
 }
+div.tabs span,
+div.tabs span.tab_here {
+    padding-top: 2px;
+    padding-bottom: 3px;
+}
