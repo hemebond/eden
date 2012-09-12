@@ -304,3 +304,13 @@ div.tabs span.tab_here {
     padding-top: 2px;
     padding-bottom: 3px;
 }
+
+div.form-container form input[type=submit] {
+    color: inherit;
+    text-transform: uppercase;
+    border: 1px solid #d6d6d6;
+    border-top-width: 2px;
+    border-radius: 12px;
+    padding: 0.2em 0.5em;
+    background-color: white;
+}

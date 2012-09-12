@@ -125,10 +125,30 @@ img#matrix_img {
     width: 180px;
     padding: 10px 7px 10px 8px;
     margin: 10px 0 0 10px;
+    line-height: 1.25em;
 }
 
 #login_div {
     border: 1px solid grey;
+}
+#login_div table,
+#login_div tbody,
+#login_div table tr,
+#login_div table td {
+    display: block;
+}
+#login_div input[type=text] {
+    max-width: 90%;
+}
+#register-btn {
+    float: left;
+}
+#retrieve-btn {
+    float: right;
+    margin: 0;
+}
+#auth_user_remember__row .w2p_fl {
+    display: none;
 }
 
 #stats_div,
