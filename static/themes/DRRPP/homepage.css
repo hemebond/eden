@@ -17,7 +17,6 @@
     width: 650px;
     float: left;
     line-height: 125%;
-    font-size: 1.2em;
 }
 #home_col2 {
     float: left;
@@ -29,7 +28,6 @@
 
 #add_div div {
     color: #5D6E4F;
-    font-size: 1.1em;
     font-weight: 700;
     background: url(img/button_addprojects.png ) no-repeat;
     width: 196px;

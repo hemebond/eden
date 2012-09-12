@@ -2,24 +2,40 @@
 
 /* Project Analysis page */
 
-#analy_matrix_div,
-#analy_graph_div,
-#analy_map_div {
-    padding: 15px;
-	float: left;
-} 
-
-#analy_matrix_div {
-    width: 250px;				   
+#page_project_analysis h2 {
+    font-family: "EraserRegular";
+    text-transform: uppercase;
+    color: #F5902E;
+    font-size: 1.4em;
+    line-height: 1em;
+    margin: 0 0 5px 0;
 }
 
-#analy_graph_div {
+#page_project_analysis h3 {
+    text-transform: uppercase;
+    color: #F5902E;
+    font-size: 1.2em;
+    margin: 0 0 5px 0;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+#page_project_analysis .page_column {
+    padding: 15px;
+	float: left;
+}
+
+#project_analysis_matrix {
+    width: 250px;
+}
+
+#project_analysis_graph {
     width: 260px;
     border-left: 2px #F5902E solid;
     border-right: 2px #F5902E solid;
 }
 
-#analy_map_div {
+#project_analysis_map {
     width: 250px;
 }
 

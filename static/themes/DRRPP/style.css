@@ -29,7 +29,8 @@ textarea {
     margin: 0px;
     padding: 0 10px 0 10px;
     background: url(img/page_sides.png) repeat-y;
-    font-size: 12px;
+    font-size: 14px;
+    line-height: 1.25em;
 }
 
 #content h1 {

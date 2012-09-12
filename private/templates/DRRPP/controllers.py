@@ -647,7 +647,24 @@ class analysis():
     """
 
     def __call__(self):
-        return "tbc"
+        T = current.T
+        response = current.response
+        request = current.request
+
+        view = path.join(request.folder, "private", "templates",
+                         "DRRPP", "views", "analysis.html")
+        try:
+            # Pass view as file not str to work in compiled mode
+            response.view = open(view, "rb")
+        except IOError:
+            from gluon.http import HTTP
+            raise HTTP("404", "Unable to open Custom View: %s" % view)
+
+        response.title = T("Project Analysis")
+
+        return dict(
+            title = T("Project Analysis"),
+        )
 
 # =============================================================================
 class mypage():
