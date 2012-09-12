@@ -63,10 +63,18 @@ class index():
                        _href=URL(c="project", f="project", args=["matrix"]),
                        _title="Project Matrix Report")
 
-        map_img = A(IMG(_src="/%s/static/themes/DRRPP/img/map_img.png" % appname,
-                        _id="map_img"),
-                    _href=URL( f="project", args=["map"]),
-                    _title="Project Map")
+        map_img = A(
+            IMG(
+                _src="/%s/static/themes/DRRPP/img/map_img.png" % appname,
+                _id="map_img"
+            ),
+            _href=URL(
+                c="project",
+                f="project",
+                args=["map"]
+            ),
+            _title="Project Map"
+        )
 
         graph_img = A(IMG(_src="/%s/static/themes/DRRPP/img/graph_img.png" % appname,
                           _id="graph_img"),
