@@ -7,8 +7,6 @@ html {
 }
 
 body {
-    /*font-size: 10px;*/
-    /*font-size: 75%;*/
     font-size: 10px;
     font-family: Arial, Helvetica, sans-serif;
     line-height: 125%;
@@ -40,6 +38,7 @@ textarea {
     font-size: 1.4em;
     line-height: 1em;
     margin: 0 0 5px 0;
+    clear: left;
 }
 
 #content h2	{
@@ -274,7 +273,7 @@ div.form-container div.buttonrow { margin-left: 180px; }
 }
 /* Tabs */
 div.tabs {
-    border-bottom: 1px solid #590f12;
+    border-bottom: 1px solid #90AABC;
 }
 div.tabs span.tab_here {
     background: #f4edd4;
@@ -303,7 +302,7 @@ span.tab_next_active {
 div.tabs span,
 div.tabs span.tab_here {
     padding-top: 2px;
-    padding-bottom: 3px;
+    padding-bottom: 2px;
 }
 
 div.form-container form input[type=submit] {

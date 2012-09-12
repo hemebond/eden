@@ -827,18 +827,31 @@ class organisations():
             if orderby and str(orderby)==str(field_name):
                 orderby=field
 
-        rows = resource.sqltable(fields=field_list,
-                                 start=None,
-                                 limit=None,
-                                 orderby=orderby,
-                                 as_page=True)
+        records = resource.select(
+            fields=field_list,
+            start=None,
+            limit=None,
+            orderby=orderby,
+            #as_page=True,
+        )
 
-        if rows is None:
-            rows = []
+        if records is None:
+            records = []
+
+        rows = []
+        for record in records:
+            row = []
+
+            for field in fields:
+                row.append(
+                    current.manager.represent(field=field, record=record)
+                )
+
+            rows.append(row)
 
         options = json.dumps({
             "iDisplayLength": limit,
-            "iDeferLoading": len(resource.load()),
+            "iDeferLoading": resource.count(),
             "bProcessing": True,
             #"bServerSide": True,
             #"sAjaxSource": "/%s/default/index/organisations/?table=%s" % (current.request.application, name),
